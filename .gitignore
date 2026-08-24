@@ -1,26 +1,88 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
+# ============================================
+# Project
+# ============================================
 
-# Virtual environment
-venv/
-.venv/
-env/
+.env
+.env.*
+!.env.example
+
+
+# ============================================
+# Python / Django - server
+# ============================================
+
+server/venv/
+server/.venv/
+server/env/
+
+server/__pycache__/
+server/**/__pycache__/
+server/*.py[cod]
+server/**/*.py[cod]
+
+server/*.log
+server/**/*.log
 
 # Django
-*.log
-db.sqlite3
-media/
-staticfiles/
+server/db.sqlite3
+server/db.sqlite3-journal
+server/media/
+server/staticfiles/
 
-# Environment variables
-.env
+# Python tooling
+server/.pytest_cache/
+server/.mypy_cache/
+server/.ruff_cache/
+server/.coverage
+server/htmlcov/
 
-# IDE
+
+# ============================================
+# Node / React / Vite - client
+# ============================================
+
+client/node_modules/
+client/dist/
+client/build/
+
+# Vite
+client/.vite/
+
+# Logs
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+client/pnpm-debug.log*
+
+# Environment files
+client/.env
+client/.env.*
+!client/.env.example
+
+
+# ============================================
+# IDE / Editors
+# ============================================
+
 .vscode/
 .idea/
+*.swp
+*.swo
 
+
+# ============================================
 # OS
+# ============================================
+
 .DS_Store
 Thumbs.db
+desktop.ini
+
+
+# ============================================
+# Coverage / Temporary
+# ============================================
+
+coverage/
+*.tmp
+*.temp
