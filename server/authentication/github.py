@@ -16,13 +16,11 @@ def get_github_authorization_url(redirect_uri=None):
     """
     Construct the GitHub OAuth authorization URL.
     """
-    client_id = getattr(settings, 'GITHUB_CLIENT_ID', '') or os.getenv('GITHUB_CLIENT_ID', '') or ''
-    target_redirect_uri = (
-        redirect_uri
-        or getattr(settings, 'GITHUB_REDIRECT_URI', '')
-        or os.getenv('GITHUB_REDIRECT_URI', '')
-        or ''
-    )
+    client_id = getattr(settings, 'GITHUB_CLIENT_ID', None)
+    target_redirect_uri = redirect_uri or getattr(settings, 'GITHUB_REDIRECT_URI', None)
+
+    if not client_id:
+        raise ValidationError({"detail": "GitHub OAuth is not configured on the server (missing Client ID)."})
 
     params = {
         'client_id': client_id,
@@ -38,17 +36,13 @@ def exchange_code_for_token(code, redirect_uri=None):
     """
     Exchange the authorization code for a GitHub access token.
     """
-    client_id = getattr(settings, 'GITHUB_CLIENT_ID', '') or os.getenv('GITHUB_CLIENT_ID', '') or ''
-    client_secret = getattr(settings, 'GITHUB_CLIENT_SECRET', '') or os.getenv('GITHUB_CLIENT_SECRET', '') or ''
-    target_redirect_uri = (
-        redirect_uri
-        or getattr(settings, 'GITHUB_REDIRECT_URI', '')
-        or os.getenv('GITHUB_REDIRECT_URI', '')
-        or ''
-    )
+    client_id = getattr(settings, 'GITHUB_CLIENT_ID', None)
+    client_secret = getattr(settings, 'GITHUB_CLIENT_SECRET', None)
+    target_redirect_uri = redirect_uri or getattr(settings, 'GITHUB_REDIRECT_URI', None)
 
     if not client_id or not client_secret:
         raise ValidationError({"detail": "GitHub OAuth is not configured on the server (missing Client ID or Secret)."})
+
 
     payload = {
         'client_id': client_id,

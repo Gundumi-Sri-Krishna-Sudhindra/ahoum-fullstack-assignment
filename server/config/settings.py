@@ -106,8 +106,8 @@ DATABASES = {
         'NAME': os.getenv('DB_NAME'),
         'USER': os.getenv('DB_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
@@ -160,18 +160,15 @@ MAILERS = {
 
 
 # GitHub OAuth Configuration
-GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
-GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
-GITHUB_REDIRECT_URI = os.getenv('GITHUB_REDIRECT_URI', '')
+GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
+GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
+GITHUB_REDIRECT_URI = os.getenv('GITHUB_REDIRECT_URI')
 
 # CORS Configuration
+_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS')
 CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000',
-    ).split(',')
-    if origin.strip()
-]
+    origin.strip() for origin in _cors_origins.split(',') if origin.strip()
+] if _cors_origins else []
 CORS_ALLOW_CREDENTIALS = True
+
 

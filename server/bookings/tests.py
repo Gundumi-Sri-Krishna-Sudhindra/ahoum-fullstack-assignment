@@ -129,6 +129,75 @@ class BookingAPITests(TransactionTestCase):
         self.assertEqual(response.data[0]["session"]["title"], "Sound Healing")
         self.assertFalse(response.data[0]["is_past"])
 
+    def test_user_can_view_single_booking_detail(self):
+        booking = Booking.objects.create(session=self.upcoming_session, user=self.user_1, status=Booking.Status.ACTIVE)
+        self.client.force_authenticate(user=self.user_1)
+        response = self.client.get(f"/api/bookings/{booking.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], booking.id)
+        self.assertEqual(response.data["session"]["title"], "Sound Healing")
+
+    def test_user_cannot_view_another_users_booking(self):
+        booking = Booking.objects.create(session=self.upcoming_session, user=self.user_1, status=Booking.Status.ACTIVE)
+        self.client.force_authenticate(user=self.user_2)
+        response = self.client.get(f"/api/bookings/{booking.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_user_can_cancel_active_booking(self):
+        booking = Booking.objects.create(session=self.upcoming_session, user=self.user_1, status=Booking.Status.ACTIVE)
+        self.assertEqual(self.upcoming_session.remaining_seats, 1)
+
+        self.client.force_authenticate(user=self.user_1)
+        response = self.client.post(f"/api/bookings/{booking.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "CANCELLED")
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.CANCELLED)
+        # Seat is freed
+        self.assertEqual(self.upcoming_session.remaining_seats, 2)
+
+    def test_user_can_rebook_after_cancellation(self):
+        # Book
+        self.client.force_authenticate(user=self.user_1)
+        res1 = self.client.post(f"/api/sessions/{self.upcoming_session.id}/book/")
+        self.assertEqual(res1.status_code, status.HTTP_201_CREATED)
+        booking_id = res1.data["id"]
+
+        # Cancel
+        res_cancel = self.client.post(f"/api/bookings/{booking_id}/cancel/")
+        self.assertEqual(res_cancel.status_code, status.HTTP_200_OK)
+
+        # Re-book
+        res2 = self.client.post(f"/api/sessions/{self.upcoming_session.id}/book/")
+        self.assertEqual(res2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Booking.objects.filter(session=self.upcoming_session, user=self.user_1, status=Booking.Status.ACTIVE).count(),
+            1,
+        )
+
+    def test_user_cannot_cancel_another_users_booking(self):
+        booking = Booking.objects.create(session=self.upcoming_session, user=self.user_1, status=Booking.Status.ACTIVE)
+        self.client.force_authenticate(user=self.user_2)
+        response = self.client.post(f"/api/bookings/{booking.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, Booking.Status.ACTIVE)
+
+    def test_user_cannot_cancel_already_cancelled_booking(self):
+        booking = Booking.objects.create(session=self.upcoming_session, user=self.user_1, status=Booking.Status.CANCELLED)
+        self.client.force_authenticate(user=self.user_1)
+        response = self.client.post(f"/api/bookings/{booking.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already cancelled", response.data["detail"])
+
+    def test_user_cannot_cancel_past_session_booking(self):
+        past_booking = Booking.objects.create(session=self.past_session, user=self.user_1, status=Booking.Status.ACTIVE)
+        self.client.force_authenticate(user=self.user_1)
+        response = self.client.post(f"/api/bookings/{past_booking.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already started", response.data["detail"])
+
     def test_concurrent_bookings_do_not_exceed_capacity(self):
         """
         Concurrency Test:
@@ -172,3 +241,4 @@ class BookingAPITests(TransactionTestCase):
         ).count()
         self.assertEqual(final_booking_count, 1)
         self.assertEqual(final_booking_count, limited_session.capacity)
+
