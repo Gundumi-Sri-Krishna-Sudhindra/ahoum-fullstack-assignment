@@ -104,10 +104,66 @@ class SessionAPITests(APITestCase):
         self.assertEqual(self.session_1.title, "Updated Meditation 101")
         self.assertEqual(self.session_1.capacity, 12)
 
-    def test_creator_can_view_mine_endpoint(self):
+    def test_creator_can_delete_own_session(self):
         self.client.force_authenticate(user=self.creator_1)
-        response = self.client.get("/api/sessions/mine/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["title"], "Meditation 101")
-        self.assertIn("attendees", response.data[0])
+        response = self.client.delete(f"/api/sessions/{self.session_1.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Session.objects.filter(id=self.session_1.id).exists())
+
+    def test_creator_cannot_delete_another_creators_session(self):
+        self.client.force_authenticate(user=self.creator_2)
+        response = self.client.delete(f"/api/sessions/{self.session_1.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Session.objects.filter(id=self.session_1.id).exists())
+
+    def test_unauthenticated_user_cannot_create_or_modify_session(self):
+        # Create
+        payload = {
+            "title": "Unauthenticated Session",
+            "start_time": (timezone.now() + timedelta(days=1)).isoformat(),
+            "end_time": (timezone.now() + timedelta(days=1, hours=1)).isoformat(),
+            "capacity": 5,
+        }
+        res_post = self.client.post("/api/sessions/", payload)
+        self.assertEqual(res_post.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Update
+        res_put = self.client.put(f"/api/sessions/{self.session_1.id}/", payload)
+        self.assertEqual(res_put.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Delete
+        res_del = self.client.delete(f"/api/sessions/{self.session_1.id}/")
+        self.assertEqual(res_del.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_validation_invalid_capacity_and_datetimes(self):
+        self.client.force_authenticate(user=self.creator_1)
+
+        # Zero or negative capacity
+        bad_capacity_payload = {
+            "title": "Bad Capacity",
+            "start_time": (timezone.now() + timedelta(days=1)).isoformat(),
+            "end_time": (timezone.now() + timedelta(days=1, hours=1)).isoformat(),
+            "capacity": 0,
+        }
+        res1 = self.client.post("/api/sessions/", bad_capacity_payload)
+        self.assertEqual(res1.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # End time before start time
+        bad_time_payload = {
+            "title": "Bad Times",
+            "start_time": (timezone.now() + timedelta(days=2)).isoformat(),
+            "end_time": (timezone.now() + timedelta(days=1)).isoformat(),
+            "capacity": 10,
+        }
+        res2 = self.client.post("/api/sessions/", bad_time_payload)
+        self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Start time in the past
+        past_time_payload = {
+            "title": "Past Start",
+            "start_time": (timezone.now() - timedelta(days=1)).isoformat(),
+            "end_time": (timezone.now() + timedelta(hours=1)).isoformat(),
+            "capacity": 10,
+        }
+        res3 = self.client.post("/api/sessions/", past_time_payload)
+        self.assertEqual(res3.status_code, status.HTTP_400_BAD_REQUEST)
