@@ -1,0 +1,2 @@
+python-interpreter-path = "server/venv/Scripts/python.exe"
+search-path = ["server"]
