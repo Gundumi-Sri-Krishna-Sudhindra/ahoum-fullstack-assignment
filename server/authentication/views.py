@@ -46,7 +46,7 @@ class LoginView(TokenObtainPairView):
     """
 
     serializer_class = CustomTokenObtainPairSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = (permissions.AllowAny,)
 
 
 class MeView(generics.RetrieveAPIView):

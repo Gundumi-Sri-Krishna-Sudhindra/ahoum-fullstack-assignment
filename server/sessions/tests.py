@@ -1,12 +1,10 @@
 from datetime import timedelta
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from sessions.models import Session
-
-User = get_user_model()
+from users.models import User
+from .models import Session
 
 
 class SessionAPITests(APITestCase):
