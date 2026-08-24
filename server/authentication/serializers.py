@@ -58,3 +58,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         return data
+
+
+class GitHubLoginSerializer(serializers.Serializer):
+    """Serializer for receiving GitHub OAuth authorization code."""
+
+    code = serializers.CharField(required=True, allow_blank=False)
+    redirect_uri = serializers.CharField(required=False, allow_blank=True, default=None)

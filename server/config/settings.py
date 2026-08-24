@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file (monorepo root or server directory)
-load_dotenv(BASE_DIR.parent / '.env')
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR.parent / '.env', override=True)
+load_dotenv(BASE_DIR / '.env', override=True)
 
 
 # Quick-start development settings - unsuitable for production
@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     # Local apps
     'users.apps.UsersConfig',
     'authentication.apps.AuthenticationConfig',
+    'sessions.apps.SessionsConfig',
+    'bookings.apps.BookingsConfig',
 ]
 
 AUTH_USER_MODEL = 'users.User'
@@ -153,3 +155,9 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+# GitHub OAuth Configuration
+GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
+GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
+GITHUB_REDIRECT_URI = os.getenv('GITHUB_REDIRECT_URI', '')
