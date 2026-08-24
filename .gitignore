@@ -36,6 +36,11 @@ server/.ruff_cache/
 server/.coverage
 server/htmlcov/
 
+# Server Environment files
+server/.env
+server/.env.*
+!server/.env.example
+
 
 # ============================================
 # Node / React / Vite - client

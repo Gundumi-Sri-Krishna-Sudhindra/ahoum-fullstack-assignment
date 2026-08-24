@@ -3,6 +3,8 @@ services:
     image: postgres:17
     container_name: ahoum-postgres
     restart: unless-stopped
+    env_file:
+      - server/.env
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
