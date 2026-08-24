@@ -1,6 +1,7 @@
 /**
  * Base API Client configured with VITE_API_BASE_URL.
- * Handles standardized headers, authentication token attachment, and JSON response parsing.
+ * Handles standardized headers, authentication token attachment, automatic token refresh,
+ * and JSON response parsing.
  */
 
 export const API_BASE_URL = (
@@ -23,7 +24,22 @@ export class ApiError extends Error {
  * Retrieve the current access token from localStorage.
  */
 export function getAccessToken() {
-  return localStorage.getItem('access_token') || localStorage.getItem('accessToken') || null
+  return (
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('accessToken') ||
+    null
+  )
+}
+
+/**
+ * Retrieve the current refresh token from localStorage.
+ */
+export function getRefreshToken() {
+  return (
+    localStorage.getItem('refresh_token') ||
+    localStorage.getItem('refreshToken') ||
+    null
+  )
 }
 
 /**
@@ -39,7 +55,7 @@ export function setTokens(access, refresh) {
 }
 
 /**
- * Remove stored tokens on logout.
+ * Remove stored tokens on logout or session expiration.
  */
 export function clearTokens() {
   localStorage.removeItem('access_token')
@@ -48,14 +64,60 @@ export function clearTokens() {
   localStorage.removeItem('refreshToken')
 }
 
+// In-flight refresh promise to prevent multiple parallel refresh calls
+let isRefreshing = null
+
 /**
- * Core fetch wrapper that prefixes requests with API_BASE_URL and adds auth headers.
- * 
+ * Internal token refresh handler that calls POST /auth/refresh/
+ */
+async function performTokenRefresh() {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) {
+    clearTokens()
+    return null
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    })
+
+    if (!response.ok) {
+      clearTokens()
+      window.dispatchEvent(new CustomEvent('auth:expired'))
+      return null
+    }
+
+    const data = await response.json()
+    if (data && data.access) {
+      setTokens(data.access, data.refresh || refreshToken)
+      return data.access
+    }
+
+    clearTokens()
+    window.dispatchEvent(new CustomEvent('auth:expired'))
+    return null
+  } catch {
+    clearTokens()
+    window.dispatchEvent(new CustomEvent('auth:expired'))
+    return null
+  }
+}
+
+/**
+ * Core fetch wrapper that prefixes requests with API_BASE_URL, adds auth headers,
+ * and handles token expiration and retries.
+ *
  * @param {string} endpoint - Relative path (e.g. '/auth/login/')
  * @param {RequestInit} [options={}] - Fetch configuration options
+ * @param {boolean} [isRetry=false] - Internal flag preventing recursive retries
  * @returns {Promise<any>}
  */
-export async function apiFetch(endpoint, options = {}) {
+export async function apiFetch(endpoint, options = {}, isRetry = false) {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
   const url = `${API_BASE_URL}${cleanEndpoint}`
 
@@ -81,6 +143,37 @@ export async function apiFetch(endpoint, options = {}) {
     return null
   }
 
+  // If 401 Unauthorized occurs on an authenticated endpoint and we haven't retried yet
+  const isAuthEndpoint =
+    cleanEndpoint.includes('/auth/login/') ||
+    cleanEndpoint.includes('/auth/register/') ||
+    cleanEndpoint.includes('/auth/refresh/') ||
+    cleanEndpoint.includes('/auth/github/')
+
+  if (response.status === 401 && !isRetry && !isAuthEndpoint) {
+    if (!isRefreshing) {
+      isRefreshing = performTokenRefresh().finally(() => {
+        isRefreshing = null
+      })
+    }
+
+    const newAccessToken = await isRefreshing
+    if (newAccessToken) {
+      const retryHeaders = {
+        ...headers,
+        Authorization: `Bearer ${newAccessToken}`,
+      }
+      return apiFetch(
+        endpoint,
+        {
+          ...options,
+          headers: retryHeaders,
+        },
+        true
+      )
+    }
+  }
+
   let data = null
   const contentType = response.headers.get('content-type')
   if (contentType && contentType.includes('application/json')) {
@@ -90,9 +183,35 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   if (!response.ok) {
-    const errorMessage =
-      (data && (data.detail || data.message || (typeof data === 'string' ? data : JSON.stringify(data)))) ||
-      `Request failed with status ${response.status}`
+    let errorMessage = 'An unexpected error occurred.'
+
+    if (data) {
+      if (typeof data === 'string') {
+        errorMessage = data
+      } else if (data.detail) {
+        errorMessage = data.detail
+      } else if (data.message) {
+        errorMessage = data.message
+      } else if (data.non_field_errors) {
+        errorMessage = Array.isArray(data.non_field_errors)
+          ? data.non_field_errors.join(' ')
+          : String(data.non_field_errors)
+      } else if (typeof data === 'object') {
+        // Collect field validation errors e.g. { email: ["A user with this email already exists."], password: [...] }
+        const fieldErrors = Object.entries(data)
+          .map(([key, val]) => {
+            const valStr = Array.isArray(val) ? val.join(' ') : String(val)
+            return `${key.replace('_', ' ')}: ${valStr}`
+          })
+          .join('\n')
+        if (fieldErrors) {
+          errorMessage = fieldErrors
+        }
+      }
+    } else {
+      errorMessage = `Request failed with status ${response.status}`
+    }
+
     throw new ApiError(errorMessage, response.status, data)
   }
 
