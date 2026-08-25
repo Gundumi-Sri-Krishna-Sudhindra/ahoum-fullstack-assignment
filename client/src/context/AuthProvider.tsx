@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import {
   getMe,
+  updateMe,
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefreshToken,
@@ -18,7 +19,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(() => {
     clearTokens()
-    localStorage.removeItem('user_role_override')
     setUser(null)
     setError(null)
   }, [])
@@ -44,10 +44,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           try {
             const profile = await getMe()
             if (isMounted) {
-              const savedRole = localStorage.getItem('user_role_override') as UserRole
-              if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-                profile.role = savedRole
-              }
               setUser(profile)
               setIsLoading(false)
             }
@@ -60,10 +56,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setTokens(refreshRes.access, refreshRes.refresh || refresh)
                 const profile = await getMe()
                 if (isMounted) {
-                  const savedRole = localStorage.getItem('user_role_override') as UserRole
-                  if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-                    profile.role = savedRole
-                  }
                   setUser(profile)
                   setIsLoading(false)
                 }
@@ -78,10 +70,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setTokens(refreshRes.access, refreshRes.refresh || refresh)
             const profile = await getMe()
             if (isMounted) {
-              const savedRole = localStorage.getItem('user_role_override') as UserRole
-              if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-                profile.role = savedRole
-              }
               setUser(profile)
               setIsLoading(false)
             }
@@ -90,7 +78,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch {
         clearTokens()
-        localStorage.removeItem('user_role_override')
         if (isMounted) {
           setUser(null)
           setIsLoading(false)
@@ -121,10 +108,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTokens(res.access, res.refresh)
     }
     const profile = res?.user || (await getMe())
-    const savedRole = localStorage.getItem('user_role_override') as UserRole
-    if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-      profile.role = savedRole
-    }
     setUser(profile)
     return profile
   }
@@ -146,8 +129,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     const profile = res?.user || (await getMe())
     if (data.role) {
-      profile.role = data.role
-      localStorage.setItem('user_role_override', data.role)
+      const updated = await updateMe({ role: data.role })
+      setUser(updated)
+      return updated
     }
     setUser(profile)
     return profile
@@ -163,26 +147,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTokens(res.access, res.refresh)
     }
     const profile = res?.user || (await getMe())
-    const savedRole = localStorage.getItem('user_role_override') as UserRole
-    if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-      profile.role = savedRole
+    if (res && typeof res.is_new_user === 'boolean') {
+      profile.is_new_user = res.is_new_user
     }
     setUser(profile)
     return profile
   }
 
-  const updateUserRole = (role: UserRole) => {
-    localStorage.setItem('user_role_override', role)
+  const updateUserRole = async (role: UserRole) => {
     setUser((prev) => (prev ? { ...prev, role } : null))
+    try {
+      const updated = await updateMe({ role })
+      if (updated) {
+        setUser(updated)
+      }
+    } catch (err) {
+      console.error('Failed to sync updated role to backend:', err)
+    }
   }
 
   const refreshUser = async (): Promise<AuthUser | null> => {
     try {
       const profile = await getMe()
-      const savedRole = localStorage.getItem('user_role_override') as UserRole
-      if (savedRole && (savedRole === 'USER' || savedRole === 'CREATOR')) {
-        profile.role = savedRole
-      }
       setUser(profile)
       return profile
     } catch {

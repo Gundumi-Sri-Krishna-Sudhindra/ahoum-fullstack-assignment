@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client.js'
+import { apiGet, apiPost, apiPatch } from './client.js'
 
 /**
  * Register a new user account (defaults to USER role).
@@ -29,4 +29,12 @@ export function refreshToken(refresh) {
  */
 export function getMe() {
   return apiGet('/auth/me/')
+}
+
+/**
+ * Update the profile/role of the currently authenticated user.
+ * @param {Partial<{ name: string, role: string }>} data
+ */
+export function updateMe(data) {
+  return apiPatch('/auth/me/', data)
 }

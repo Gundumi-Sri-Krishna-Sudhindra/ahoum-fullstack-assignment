@@ -41,18 +41,17 @@ export const GitHubCallbackPage = () => {
         const redirectUri = window.location.origin + window.location.pathname
         const loggedInUser = await loginWithGitHub(code, redirectUri)
 
-        // Check if role has already been confirmed previously
-        const existingRoleOverride = localStorage.getItem('user_role_override')
-        if (existingRoleOverride) {
+        // Check if this is a newly registered user account via GitHub
+        if (loggedInUser.is_new_user) {
+          setAuthenticatedUser(loggedInUser)
+          setShowRoleModal(true)
+        } else {
+          // Existing user logging in -> directly redirect based on database role
           if (loggedInUser.role === 'CREATOR') {
             navigate('/creator', { replace: true })
           } else {
             navigate('/dashboard', { replace: true })
           }
-        } else {
-          // Present role confirmation modal to finalize account role setup
-          setAuthenticatedUser(loggedInUser)
-          setShowRoleModal(true)
         }
       } catch (err: unknown) {
         const e = err as { message?: string }
@@ -66,8 +65,8 @@ export const GitHubCallbackPage = () => {
     processOAuth()
   }, [searchParams, loginWithGitHub, navigate])
 
-  const handleRoleConfirmed = (role: UserRole) => {
-    updateUserRole(role)
+  const handleRoleConfirmed = async (role: UserRole) => {
+    await updateUserRole(role)
     setShowRoleModal(false)
     if (role === 'CREATOR') {
       navigate('/creator', { replace: true })

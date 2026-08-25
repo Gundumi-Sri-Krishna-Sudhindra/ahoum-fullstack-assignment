@@ -79,8 +79,8 @@ export const RegisterPage = () => {
     }
   }
 
-  const handleRoleConfirmed = (role: UserRole) => {
-    updateUserRole(role)
+  const handleRoleConfirmed = async (role: UserRole) => {
+    await updateUserRole(role)
     setShowRoleModal(false)
     if (role === 'CREATOR') {
       navigate('/creator', { replace: true })

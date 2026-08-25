@@ -1,20 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
 import { PageContainer } from '../components/ui/PageContainer'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { SignOutModal } from '../components/auth/SignOutModal'
 
 export const ProfilePage = () => {
   const { user, logout } = useAuth()
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
     document.title = 'Ahoum | My Profile'
   }, [])
 
-  const handleLogout = () => {
+  const handleConfirmLogout = () => {
+    setShowSignOutModal(false)
     logout()
     navigate('/', { replace: true })
   }
@@ -23,16 +26,16 @@ export const ProfilePage = () => {
 
   return (
     <PageContainer maxWidth="6xl">
+      {/* Sign Out Confirmation Modal */}
+      <SignOutModal
+        isOpen={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={handleConfirmLogout}
+      />
+
       <PageHeader
         title="User Profile"
         description="View your verified account details, role permissions, and session access settings."
-        actions={
-          <Link to={isCreator ? '/creator' : '/dashboard'}>
-            <Button variant="outline" size="md">
-              &larr; Back to Dashboard
-            </Button>
-          </Link>
-        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -102,7 +105,7 @@ export const ProfilePage = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleLogout}
+              onClick={() => setShowSignOutModal(true)}
               className="text-red-700 hover:text-red-800 hover:border-red-300"
             >
               Sign Out of Account
@@ -127,30 +130,42 @@ export const ProfilePage = () => {
             {isCreator ? (
               <>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Publish and schedule live workshop sessions</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Set participant limits and seat capacities</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Monitor confirmed registrations and attendee rosters</span>
                 </li>
               </>
             ) : (
               <>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Browse upcoming catalog with live seat meters</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Reserve seats with row-locked concurrency protection</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-700 font-bold">&check;</span>
+                  <svg className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
                   <span>Manage and cancel registered reservations anytime</span>
                 </li>
               </>
@@ -158,19 +173,33 @@ export const ProfilePage = () => {
           </ul>
 
           <div className="pt-4 border-t border-slate-200 space-y-2">
-            <Link to="/sessions" className="block">
-              <Button variant="primary" size="md" className="w-full">
-                Explore Sessions Catalog
-              </Button>
-            </Link>
-            <Link
-              to={isCreator ? '/creator/sessions/new' : '/bookings'}
-              className="block"
-            >
-              <Button variant="outline" size="md" className="w-full">
-                {isCreator ? '+ Host New Session' : 'View My Bookings'}
-              </Button>
-            </Link>
+            {isCreator ? (
+              <>
+                <Link to="/creator" className="block">
+                  <Button variant="primary" size="md" className="w-full">
+                    View My Sessions
+                  </Button>
+                </Link>
+                <Link to="/creator/sessions/new" className="block">
+                  <Button variant="outline" size="md" className="w-full">
+                    + Host New Session
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/sessions" className="block">
+                  <Button variant="primary" size="md" className="w-full">
+                    Explore Sessions Catalog
+                  </Button>
+                </Link>
+                <Link to="/bookings" className="block">
+                  <Button variant="outline" size="md" className="w-full">
+                    View My Bookings
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ export interface AuthUser {
   name: string
   role: UserRole
   is_active?: boolean
+  is_new_user?: boolean
 }
 
 export interface AuthContextType {
@@ -23,5 +24,5 @@ export interface AuthContextType {
   loginWithGitHub: (code: string, redirectUri?: string) => Promise<AuthUser>
   logout: () => void
   refreshUser: () => Promise<AuthUser | null>
-  updateUserRole: (role: UserRole) => void
+  updateUserRole: (role: UserRole) => Promise<void>
 }

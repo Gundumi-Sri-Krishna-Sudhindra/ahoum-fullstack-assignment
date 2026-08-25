@@ -1,4 +1,9 @@
 export * from './client.js'
+export * from './auth.js'
+export * from './github.js'
+export * from './sessions.js'
+export * from './bookings.js'
+
 export * as authApi from './auth.js'
 export * as githubApi from './github.js'
 export * as sessionsApi from './sessions.js'

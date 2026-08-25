@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
@@ -13,6 +15,15 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'email', 'name', 'role')
         read_only_fields = ('id', 'email', 'name', 'role')
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile details including role."""
+
+    class Meta:
+        model = User
+        fields = ('id', 'email', 'name', 'role')
+        read_only_fields = ('id', 'email')
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -31,7 +42,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         normalized_email = value.lower().strip()
         if User.objects.filter(email__iexact=normalized_email).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise serializers.ValidationError("An account with this email already exists. Please sign in instead.")
         return normalized_email
 
     def validate_password(self, value):
@@ -54,8 +65,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     returning JWT access/refresh tokens alongside user details.
     """
 
-    def validate(self, attrs):
-        data = super().validate(attrs)
+    def validate(self, attrs: Any) -> dict[str, Any]:
+        email = (attrs.get('email') or attrs.get('username') or '').strip().lower()
+        if email:
+            user_obj = User.objects.filter(email__iexact=email).first()
+            if user_obj and not user_obj.has_usable_password():
+                raise serializers.ValidationError(
+                    {"detail": "This account was created with GitHub OAuth. Please sign in using the 'Continue with GitHub' button."}
+                )
+        data: dict[str, Any] = cast(dict[str, Any], super().validate(attrs))
         data['user'] = UserSerializer(self.user).data
         return data
 

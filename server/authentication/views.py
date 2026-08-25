@@ -10,6 +10,7 @@ from .serializers import (
     GitHubLoginSerializer,
     RegisterSerializer,
     UserSerializer,
+    UserUpdateSerializer,
 )
 
 User = get_user_model()
@@ -49,14 +50,18 @@ class LoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
 
 
-class MeView(generics.RetrieveAPIView):
+class MeView(generics.RetrieveUpdateAPIView):
     """
-    Endpoint to retrieve the currently authenticated user's details.
+    Endpoint to retrieve or update the currently authenticated user's details.
     Requires a valid JWT access token.
     """
 
-    serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return UserUpdateSerializer
+        return UserSerializer
 
     def get_object(self):
         return self.request.user
@@ -104,6 +109,7 @@ class GitHubLoginView(views.APIView):
 
         # Find or create user
         user = User.objects.filter(email__iexact=email).first()
+        is_new_user = False
         if user:
             if not user.is_active:
                 return Response(
@@ -111,6 +117,7 @@ class GitHubLoginView(views.APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         else:
+            is_new_user = True
             user = User.objects.create_user(
                 email=email,
                 name=name,
@@ -124,6 +131,7 @@ class GitHubLoginView(views.APIView):
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
                 'user': UserSerializer(user).data,
+                'is_new_user': is_new_user,
             },
             status=status.HTTP_200_OK,
         )

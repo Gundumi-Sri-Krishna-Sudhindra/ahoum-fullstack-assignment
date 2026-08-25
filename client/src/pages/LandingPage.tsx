@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import { getSessions } from '../api/sessions.js'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -12,14 +13,60 @@ import {
   TableHead,
   TableCell,
 } from '../components/ui/Table'
+import { Loading } from '../components/ui/Loading'
+import type { SessionItem } from './SessionsPage'
 
 export const LandingPage = () => {
   const { user, isAuthenticated } = useAuth()
   const dashboardUrl = user?.role === 'CREATOR' ? '/creator' : '/dashboard'
 
+  const [featuredSessions, setFeaturedSessions] = useState<SessionItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
   useEffect(() => {
     document.title = 'Ahoum'
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadFeatured = async () => {
+      setIsLoading(true)
+      try {
+        const data = await getSessions({ filter: 'upcoming' })
+        if (isMounted) {
+          const list = Array.isArray(data) ? data : data?.results || []
+          setFeaturedSessions(list.slice(0, 5))
+        }
+      } catch {
+        if (isMounted) {
+          setFeaturedSessions([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadFeatured()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return 'TBD'
+    const date = new Date(isoString)
+    return date.toLocaleString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  }
 
   return (
     <div className="space-y-12 sm:space-y-16 pb-16">
@@ -127,7 +174,7 @@ export const LandingPage = () => {
               Featured Upcoming Sessions
             </h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              Sample interactive sessions starting this week.
+              Live interactive workshops available on Ahoum.
             </p>
           </div>
           <Link to="/sessions">
@@ -137,70 +184,74 @@ export const LandingPage = () => {
           </Link>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>TITLE</TableHead>
-              <TableHead>CREATOR</TableHead>
-              <TableHead>START TIME</TableHead>
-              <TableHead>SEATS AVAILABLE</TableHead>
-              <TableHead className="text-right">ACTION</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell className="font-semibold text-slate-900">
-                React Basics
-              </TableCell>
-              <TableCell>John Doe</TableCell>
-              <TableCell>25 Aug • 10:00 AM</TableCell>
-              <TableCell>
-                <Badge variant="success" size="md">8/20</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <Link to="/sessions">
-                  <Button variant="outline" size="sm">
-                    VIEW
-                  </Button>
-                </Link>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-semibold text-slate-900">
-                Python Intro
-              </TableCell>
-              <TableCell>Jane Smith</TableCell>
-              <TableCell>26 Aug • 02:00 PM</TableCell>
-              <TableCell>
-                <Badge variant="warning" size="md">3/15</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <Link to="/sessions">
-                  <Button variant="outline" size="sm">
-                    VIEW
-                  </Button>
-                </Link>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-semibold text-slate-900">
-                System Design
-              </TableCell>
-              <TableCell>Alex</TableCell>
-              <TableCell>28 Aug • 11:00 AM</TableCell>
-              <TableCell>
-                <Badge variant="danger" size="md">FULL</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <Link to="/sessions">
-                  <Button variant="outline" size="sm">
-                    VIEW
-                  </Button>
-                </Link>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+        {isLoading ? (
+          <div className="border border-slate-200 rounded-sm bg-white p-8 text-center">
+            <Loading size="md" label="Loading upcoming sessions..." />
+          </div>
+        ) : featuredSessions.length === 0 ? (
+          <div className="border border-slate-200 rounded-sm bg-white p-8 text-center space-y-3">
+            <p className="text-base font-semibold text-slate-800">
+              No upcoming sessions are currently scheduled.
+            </p>
+            <p className="text-sm text-slate-500">
+              Check back soon or sign in to browse full catalog history.
+            </p>
+            <div className="pt-2">
+              <Link to="/sessions">
+                <Button variant="outline" size="sm">
+                  Go to Sessions Catalog
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>TITLE</TableHead>
+                <TableHead>CREATOR</TableHead>
+                <TableHead>START TIME</TableHead>
+                <TableHead>SEATS AVAILABLE</TableHead>
+                <TableHead className="text-right">ACTION</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {featuredSessions.map((session) => {
+                const isFull = session.remaining_seats <= 0
+                return (
+                  <TableRow key={session.id}>
+                    <TableCell className="font-semibold text-slate-900">
+                      {session.title}
+                    </TableCell>
+                    <TableCell>{session.creator?.name || 'Verified Creator'}</TableCell>
+                    <TableCell>{formatDateTime(session.start_time)}</TableCell>
+                    <TableCell>
+                      {isFull ? (
+                        <Badge variant="danger" size="md">
+                          FULL
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant={session.remaining_seats <= 3 ? 'warning' : 'success'}
+                          size="md"
+                        >
+                          {session.remaining_seats} / {session.capacity} Available
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link to={`/sessions/${session.id}`}>
+                        <Button variant="outline" size="sm">
+                          VIEW
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
       </PageContainer>
 
       {/* Call to Action Box */}

@@ -4,13 +4,16 @@ import { useAuth } from '../../context/useAuth'
 import { AhoumLogo } from './AhoumLogo'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { SignOutModal } from '../auth/SignOutModal'
 
 export const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  const handleConfirmLogout = () => {
+    setShowSignOutModal(false)
     logout()
     navigate('/', { replace: true })
   }
@@ -31,6 +34,13 @@ export const Navbar = () => {
 
   return (
     <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+      {/* Sign Out Confirmation Modal */}
+      <SignOutModal
+        isOpen={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={handleConfirmLogout}
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand & Primary Nav */}
         <div className="flex items-center gap-10">
@@ -59,13 +69,10 @@ export const Navbar = () => {
               {user?.role === 'CREATOR' && (
                 <>
                   <NavLink to="/creator" className={navLinkClasses}>
-                    Creator Dashboard
+                    My Sessions
                   </NavLink>
                   <NavLink to="/creator/sessions/new" className={navLinkClasses}>
                     + New Session
-                  </NavLink>
-                  <NavLink to="/sessions" className={navLinkClasses}>
-                    Sessions
                   </NavLink>
                   <NavLink to="/profile" className={navLinkClasses}>
                     Profile
@@ -98,7 +105,7 @@ export const Navbar = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleLogout}
+                onClick={() => setShowSignOutModal(true)}
                 id="btn-logout"
               >
                 Logout
@@ -197,7 +204,7 @@ export const Navbar = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={mobileNavLinkClasses}
               >
-                Creator Dashboard
+                My Sessions
               </NavLink>
               <NavLink
                 to="/creator/sessions/new"
@@ -205,13 +212,6 @@ export const Navbar = () => {
                 className={mobileNavLinkClasses}
               >
                 + New Session
-              </NavLink>
-              <NavLink
-                to="/sessions"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLinkClasses}
-              >
-                Sessions
               </NavLink>
               <NavLink
                 to="/profile"
@@ -241,7 +241,14 @@ export const Navbar = () => {
                     {user.name || user.email}
                   </span>
                 </Link>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false)
+                    setShowSignOutModal(true)
+                  }}
+                >
                   Logout
                 </Button>
               </div>
