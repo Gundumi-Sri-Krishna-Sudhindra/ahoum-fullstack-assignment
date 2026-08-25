@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import { getGitHubAuthUrl } from '../api/github.js'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
@@ -11,6 +12,8 @@ import type { UserRole, AuthUser } from '../context/types'
 export const GitHubCallbackPage = () => {
   const [searchParams] = useSearchParams()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isCancelled, setIsCancelled] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthUser | null>(
     null
@@ -29,6 +32,25 @@ export const GitHubCallbackPage = () => {
     hasExecutedRef.current = true
 
     const processOAuth = async () => {
+      // 1. Check for OAuth error / cancellation query params from GitHub
+      const errorParam = searchParams.get('error')
+      const errorDesc = searchParams.get('error_description')
+
+      if (errorParam) {
+        if (errorParam === 'access_denied' || errorParam === 'user_cancelled_authorize') {
+          setIsCancelled(true)
+          setErrorMsg(
+            'GitHub authorization was cancelled. You can sign in with your email or try connecting with GitHub again.'
+          )
+        } else {
+          setErrorMsg(
+            errorDesc || `GitHub authorization failed with error: ${errorParam}`
+          )
+        }
+        return
+      }
+
+      // 2. Check for authorization code
       const code = searchParams.get('code')
       if (!code) {
         setErrorMsg(
@@ -72,7 +94,7 @@ export const GitHubCallbackPage = () => {
         const e = err as { message?: string }
         setErrorMsg(
           e?.message ||
-            'GitHub authentication failed or the code has expired. Please try signing in again.'
+            'GitHub authentication failed or the authorization code has expired. Please try signing in again.'
         )
       }
     }
@@ -90,6 +112,23 @@ export const GitHubCallbackPage = () => {
     }
   }
 
+  const handleRetryGitHub = async () => {
+    setIsRetrying(true)
+    setErrorMsg(null)
+    try {
+      const res = await getGitHubAuthUrl()
+      if (res && res.url) {
+        window.location.href = res.url
+      } else {
+        setErrorMsg('Failed to initialize GitHub OAuth flow.')
+        setIsRetrying(false)
+      }
+    } catch {
+      setErrorMsg('Failed to connect to GitHub. Please try again.')
+      setIsRetrying(false)
+    }
+  }
+
   return (
     <PageContainer maxWidth="sm" className="py-20 sm:py-28">
       {/* Role Selection Modal */}
@@ -101,22 +140,72 @@ export const GitHubCallbackPage = () => {
       />
 
       <div className="border border-slate-200 p-8 sm:p-12 rounded-sm bg-white text-center space-y-6 shadow-xs">
-        {errorMsg ? (
+        {isCancelled ? (
+          /* User explicitly cancelled OAuth on GitHub */
+          <div className="space-y-6">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl font-bold">
+              !
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Authorization Cancelled
+              </h2>
+              <p className="text-sm text-slate-600">
+                You chose not to complete the GitHub authorization request. No account was modified.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-3">
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full justify-center"
+                onClick={handleRetryGitHub}
+                isLoading={isRetrying}
+              >
+                Try Again with GitHub
+              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Link to="/login" className="w-full">
+                  <Button variant="outline" size="md" className="w-full">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link to="/register" className="w-full">
+                  <Button variant="outline" size="md" className="w-full">
+                    Register
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : errorMsg ? (
+          /* General OAuth Error / Failure */
           <div className="space-y-6">
             <ErrorMessage
               title="GitHub Authorization Failed"
               message={errorMsg}
               variant="error"
             />
-            <div className="pt-2">
-              <Link to="/login">
-                <Button variant="primary" size="md">
-                  Return to Login
+            <div className="pt-2 flex flex-col gap-3">
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full justify-center"
+                onClick={handleRetryGitHub}
+                isLoading={isRetrying}
+              >
+                Retry GitHub Authorization
+              </Button>
+              <Link to="/login" className="w-full">
+                <Button variant="outline" size="md" className="w-full">
+                  Return to Email Login
                 </Button>
               </Link>
             </div>
           </div>
         ) : (
+          /* In-Flight Processing */
           <div className="space-y-4 py-4">
             <Loading size="lg" label="Completing GitHub authorization..." />
             <p className="text-sm text-slate-600">
