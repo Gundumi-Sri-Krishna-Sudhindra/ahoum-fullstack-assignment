@@ -20,6 +20,8 @@ class SessionSerializer(serializers.ModelSerializer):
     remaining_seats = serializers.IntegerField(read_only=True)
     is_past = serializers.BooleanField(read_only=True)
     is_booked = serializers.SerializerMethodField()
+    booking_id = serializers.SerializerMethodField()
+    booking_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
@@ -35,6 +37,8 @@ class SessionSerializer(serializers.ModelSerializer):
             'remaining_seats',
             'is_past',
             'is_booked',
+            'booking_id',
+            'booking_status',
             'created_at',
             'updated_at',
         )
@@ -45,6 +49,8 @@ class SessionSerializer(serializers.ModelSerializer):
             'remaining_seats',
             'is_past',
             'is_booked',
+            'booking_id',
+            'booking_status',
             'created_at',
             'updated_at',
         )
@@ -59,6 +65,32 @@ class SessionSerializer(serializers.ModelSerializer):
                 for b in obj.bookings.all()
             )
         return obj.bookings.filter(user=request.user, status='ACTIVE').exists()
+
+    def get_booking_id(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+        if hasattr(obj, '_prefetched_objects_cache') and 'bookings' in obj._prefetched_objects_cache:
+            booking = next(
+                (b for b in obj.bookings.all() if b.user_id == request.user.id and b.status == 'ACTIVE'),
+                None,
+            )
+            return booking.id if booking else None
+        booking = obj.bookings.filter(user=request.user, status='ACTIVE').first()
+        return booking.id if booking else None
+
+    def get_booking_status(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+        if hasattr(obj, '_prefetched_objects_cache') and 'bookings' in obj._prefetched_objects_cache:
+            booking = next(
+                (b for b in obj.bookings.all() if b.user_id == request.user.id),
+                None,
+            )
+            return booking.status if booking else None
+        booking = obj.bookings.filter(user=request.user).order_by('-created_at').first()
+        return booking.status if booking else None
 
 
 class SessionCreateUpdateSerializer(serializers.ModelSerializer):

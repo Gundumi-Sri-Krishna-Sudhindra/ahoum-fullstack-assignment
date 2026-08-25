@@ -15,6 +15,7 @@ import {
 import { Badge } from '../components/ui/Badge'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
+import { CancelBookingModal } from '../components/bookings/CancelBookingModal'
 
 export interface BookingItem {
   id: number | string
@@ -40,7 +41,9 @@ export interface BookingItem {
 export const BookingsPage = () => {
   const [bookings, setBookings] = useState<BookingItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [cancellingId, setCancellingId] = useState<number | string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [selectedBookingForCancel, setSelectedBookingForCancel] =
+    useState<BookingItem | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -79,24 +82,25 @@ export const BookingsPage = () => {
     }
   }, [refreshTrigger])
 
-  const handleCancelBooking = async (id: number | string) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) {
-      return
-    }
+  const handleConfirmCancel = async () => {
+    if (!selectedBookingForCancel) return
 
-    setCancellingId(id)
+    setIsCancelling(true)
     setErrorMsg(null)
     setSuccessMsg(null)
 
     try {
-      await cancelBooking(id)
-      setSuccessMsg('Booking has been successfully cancelled.')
+      await cancelBooking(selectedBookingForCancel.id)
+      setSuccessMsg(
+        `Your reservation for "${selectedBookingForCancel.session?.title || 'the session'}" was successfully cancelled.`
+      )
+      setSelectedBookingForCancel(null)
       setRefreshTrigger((prev) => prev + 1)
     } catch (err: unknown) {
       const e = err as { message?: string }
       setErrorMsg(e?.message || 'Failed to cancel booking. Please try again.')
     } finally {
-      setCancellingId(null)
+      setIsCancelling(false)
     }
   }
 
@@ -115,6 +119,15 @@ export const BookingsPage = () => {
 
   return (
     <PageContainer maxWidth="7xl">
+      {/* Custom Cancel Booking Modal */}
+      <CancelBookingModal
+        isOpen={!!selectedBookingForCancel}
+        sessionTitle={selectedBookingForCancel?.session?.title}
+        isLoading={isCancelling}
+        onClose={() => setSelectedBookingForCancel(null)}
+        onConfirm={handleConfirmCancel}
+      />
+
       <PageHeader
         title="My Registered Bookings"
         description="View your confirmed workshop reservations, check host details, and manage seat cancellations."
@@ -227,8 +240,7 @@ export const BookingsPage = () => {
                           <Button
                             variant="danger"
                             size="sm"
-                            onClick={() => handleCancelBooking(booking.id)}
-                            isLoading={cancellingId === booking.id}
+                            onClick={() => setSelectedBookingForCancel(booking)}
                           >
                             Cancel Seat
                           </Button>

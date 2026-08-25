@@ -29,6 +29,8 @@ export interface SessionItem {
   remaining_seats: number
   is_past: boolean
   is_booked?: boolean
+  booking_id?: number | string | null
+  booking_status?: 'ACTIVE' | 'CANCELLED' | string | null
   creator?: {
     id: number | string
     name: string
@@ -46,6 +48,7 @@ export const SessionsPage = () => {
 
   const [appliedSearch, setAppliedSearch] = useState('')
   const [appliedFilter, setAppliedFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   useEffect(() => {
     document.title = 'Ahoum | Sessions'
@@ -89,7 +92,7 @@ export const SessionsPage = () => {
     return () => {
       isMounted = false
     }
-  }, [appliedSearch, appliedFilter])
+  }, [appliedSearch, appliedFilter, refreshTrigger])
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -105,8 +108,7 @@ export const SessionsPage = () => {
   }
 
   const handleRefresh = () => {
-    // Re-trigger load by re-applying current state
-    setAppliedSearch((prev) => prev)
+    setRefreshTrigger((prev) => prev + 1)
   }
 
   const formatDateTime = (isoString: string) => {
@@ -131,7 +133,7 @@ export const SessionsPage = () => {
             variant="outline"
             size="md"
             onClick={handleRefresh}
-            disabled={isLoading}
+            isLoading={isLoading}
           >
             Refresh Catalog
           </Button>

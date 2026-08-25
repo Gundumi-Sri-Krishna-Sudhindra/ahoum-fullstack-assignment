@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import { getSession, bookSession } from '../api/sessions.js'
+import { cancelBooking } from '../api/bookings.js'
 import { useAuth } from '../context/useAuth'
 import { PageContainer } from '../components/ui/PageContainer'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -8,6 +9,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
+import { CancelBookingModal } from '../components/bookings/CancelBookingModal'
 import type { SessionItem } from './SessionsPage'
 
 export const SessionDetailPage = () => {
@@ -16,6 +18,8 @@ export const SessionDetailPage = () => {
   const [session, setSession] = useState<SessionItem | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isBooking, setIsBooking] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [alreadyBookedByError, setAlreadyBookedByError] = useState(false)
@@ -81,6 +85,32 @@ export const SessionDetailPage = () => {
     }
   }
 
+  const handleConfirmCancelSeat = async () => {
+    const activeBookingId = session?.booking_id || location.state?.bookingId
+    if (!activeBookingId) {
+      setErrorMsg('No active booking reference found to cancel.')
+      setShowCancelModal(false)
+      return
+    }
+
+    setIsCancelling(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+
+    try {
+      await cancelBooking(activeBookingId)
+      setSuccessMsg('Your seat reservation was successfully cancelled.')
+      setAlreadyBookedByError(false)
+      setShowCancelModal(false)
+      setRefreshTrigger((prev) => prev + 1)
+    } catch (err: unknown) {
+      const e = err as { message?: string }
+      setErrorMsg(e?.message || 'Failed to cancel booking. Please try again.')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   const formatDateTime = (isoString?: string) => {
     if (!isoString) return 'TBD'
     const date = new Date(isoString)
@@ -102,49 +132,87 @@ export const SessionDetailPage = () => {
 
   const isFromBookings =
     location.state?.from === 'bookings' || location.state?.from === '/bookings'
+  const effectiveBookingStatus =
+    session?.booking_status || location.state?.bookingStatus
+
   const isBooked = Boolean(
-    session?.is_booked || alreadyBookedByError || successMsg || (isFromBookings && isUserRole)
+    (session?.is_booked || alreadyBookedByError) &&
+      effectiveBookingStatus !== 'CANCELLED'
   )
 
-  const backUrl = isCreatorRole
-    ? '/creator/sessions'
-    : isFromBookings || isBooked
-    ? '/bookings'
-    : '/sessions'
-
-  const backLabel = isCreatorRole
-    ? 'Back to My Sessions'
-    : isFromBookings || isBooked
-    ? 'Back to My Bookings'
-    : 'Back to Catalog'
+  const isCancelled =
+    effectiveBookingStatus === 'CANCELLED' && !session?.is_booked
 
   return (
     <PageContainer maxWidth="lg">
+      {/* Custom Seat Cancellation Modal */}
+      <CancelBookingModal
+        isOpen={showCancelModal}
+        sessionTitle={session?.title}
+        isLoading={isCancelling}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancelSeat}
+      />
+
       <PageHeader
         title={session?.title || `Session Detail #${id}`}
         description={
           isUserRole && isBooked
             ? 'Your seat is confirmed. Review your live workshop schedule, access details, and host credentials.'
+            : isCancelled
+            ? 'Your previous reservation was cancelled. Check updated schedule or re-book available seats.'
             : 'Comprehensive agenda, creator profile, and live reservation details.'
         }
         actions={
           <div className="flex items-center gap-3">
-            <Link to={backUrl}>
-              <Button variant="outline" size="md">
-                &larr; {backLabel}
-              </Button>
-            </Link>
-            {isCreatorRole && id && (
-              <Link to={`/creator/sessions/${id}/edit`}>
-                <Button variant="primary" size="md">
-                  Edit Session
+            {/* Creator Actions */}
+            {isCreatorRole && (
+              <>
+                <Link to="/creator/sessions">
+                  <Button variant="outline" size="md">
+                    &larr; Back to My Sessions
+                  </Button>
+                </Link>
+                {id && (
+                  <Link to={`/creator/sessions/${id}/edit`}>
+                    <Button variant="primary" size="md">
+                      Edit Session
+                    </Button>
+                  </Link>
+                )}
+              </>
+            )}
+
+            {/* Learner: Explored from My Bookings -> ONLY 1 button (Back to My Bookings) */}
+            {isUserRole && isFromBookings && (
+              <Link to="/bookings">
+                <Button variant="outline" size="md">
+                  &larr; Back to My Bookings
                 </Button>
               </Link>
             )}
-            {isUserRole && isBooked && !isFromBookings && (
-              <Link to="/bookings">
-                <Button variant="primary" size="md">
-                  My Bookings &rarr;
+
+            {/* Learner: Explored from Sessions / Catalog and is already booked -> EXACTLY 2 buttons */}
+            {isUserRole && !isFromBookings && isBooked && (
+              <>
+                <Link to="/sessions">
+                  <Button variant="outline" size="md">
+                    &larr; Back to Catalog
+                  </Button>
+                </Link>
+                <Link to="/bookings">
+                  <Button variant="primary" size="md">
+                    Show in My Bookings &rarr;
+                  </Button>
+                </Link>
+              </>
+            )}
+
+            {/* Learner: Explored from Catalog and is NOT booked -> 1 button (Back to Catalog) */}
+            {isUserRole && !isFromBookings && !isBooked && (
+              <Link to="/sessions">
+                <Button variant="outline" size="md">
+                  &larr; Back to Catalog
                 </Button>
               </Link>
             )}
@@ -163,19 +231,21 @@ export const SessionDetailPage = () => {
             message={errorMsg}
             variant="error"
           />
-          <Link to={backUrl}>
-            <Button variant="primary">{backLabel}</Button>
+          <Link to={isFromBookings ? '/bookings' : '/sessions'}>
+            <Button variant="primary">
+              {isFromBookings ? 'Back to My Bookings' : 'Back to Catalog'}
+            </Button>
           </Link>
         </div>
       ) : session ? (
         <div className="space-y-6">
-          {/* Confirmed Reservation Pass for Booked Learners */}
+          {/* Confirmed Reservation Pass for Active Booked Learners */}
           {isUserRole && isBooked && (
-            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-sm p-6 sm:p-7 shadow-md border border-blue-800 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-800/80 pb-4">
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-sm p-6 sm:p-7 shadow-md border border-blue-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-800/80 pb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-emerald-500 text-white rounded-sm">
-                    ✓ Confirmed Reservation Pass
+                    ✓ Active Confirmed Reservation
                   </span>
                   <span className="text-xs text-blue-200">
                     Session ID: #{session.id}
@@ -185,27 +255,59 @@ export const SessionDetailPage = () => {
                   Attendee: <strong className="text-white">{user?.name || user?.email}</strong>
                 </span>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div>
                   <h3 className="text-xl font-bold text-white">
                     {session.title}
                   </h3>
-                  <p className="text-xs text-blue-200">
+                  <p className="text-xs text-blue-200 mt-0.5">
                     Hosted by <span className="font-semibold text-white">{session.creator?.name || 'Verified Creator'}</span> ({session.creator?.email})
                   </p>
                 </div>
-                <Link to="/bookings">
-                  <Button variant="secondary" size="sm">
-                    View in My Bookings &rarr;
+                {!isPast && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setShowCancelModal(true)}
+                  >
+                    Cancel Reservation
                   </Button>
-                </Link>
+                )}
               </div>
+            </div>
+          )}
+
+          {/* Cancellation Notice Banner if Previous Booking was Cancelled */}
+          {isUserRole && isCancelled && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="space-y-0.5">
+                <div className="text-xs font-bold uppercase tracking-wider text-amber-700">
+                  Booking Status
+                </div>
+                <p className="text-sm font-semibold text-amber-950">
+                  Your reservation for this workshop was cancelled.
+                </p>
+                <p className="text-xs text-amber-800">
+                  You can reserve a new seat below if the session is upcoming and has capacity.
+                </p>
+              </div>
+              {!isPast && !isFull && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleBookSession}
+                  isLoading={isBooking}
+                >
+                  Re-book Seat Now
+                </Button>
+              )}
             </div>
           )}
 
           {successMsg && (
             <ErrorMessage
-              title="Booking Confirmed"
+              title="Status Updated"
               message={successMsg}
               variant="success"
             />
@@ -213,7 +315,7 @@ export const SessionDetailPage = () => {
 
           {errorMsg && (
             <ErrorMessage
-              title="Booking Notice"
+              title="Notice"
               message={errorMsg}
               variant="error"
             />
@@ -226,6 +328,10 @@ export const SessionDetailPage = () => {
                 {isUserRole && isBooked ? (
                   <Badge variant="primary" size="lg">
                     ✓ Already Booked
+                  </Badge>
+                ) : isUserRole && isCancelled ? (
+                  <Badge variant="neutral" size="lg">
+                    Reservation Cancelled
                   </Badge>
                 ) : isPast ? (
                   <Badge variant="neutral" size="lg">
@@ -305,12 +411,16 @@ export const SessionDetailPage = () => {
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Actions Bottom Bar */}
             <div className="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4">
               <div>
                 {isUserRole && isBooked ? (
                   <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                     <span>✓</span> Your reservation is active and locked.
+                  </span>
+                ) : isUserRole && isCancelled ? (
+                  <span className="text-xs text-amber-800 font-medium">
+                    Previous seat reservation was cancelled.
                   </span>
                 ) : (
                   <span className="text-xs text-slate-500">
@@ -328,19 +438,32 @@ export const SessionDetailPage = () => {
                   </Link>
                 )}
 
-                {isUserRole && isBooked && (
-                  <div className="flex items-center gap-3">
-                    <Button variant="secondary" size="md" disabled className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold">
-                      ✓ Already Booked
+                {/* When explored from Bookings: 1 button */}
+                {isUserRole && isFromBookings && (
+                  <Link to="/bookings">
+                    <Button variant="outline" size="md">
+                      &larr; Back to My Bookings
                     </Button>
-                    <Link to="/bookings">
-                      <Button variant="primary" size="md">
-                        View in My Bookings &rarr;
-                      </Button>
-                    </Link>
-                  </div>
+                  </Link>
                 )}
 
+                {/* When explored from Sessions/Catalog and already booked: 2 buttons */}
+                {isUserRole && !isFromBookings && isBooked && (
+                  <>
+                    <Link to="/sessions">
+                      <Button variant="outline" size="md">
+                        &larr; Back to Catalog
+                      </Button>
+                    </Link>
+                    <Link to="/bookings">
+                      <Button variant="primary" size="md">
+                        Show in My Bookings &rarr;
+                      </Button>
+                    </Link>
+                  </>
+                )}
+
+                {/* Unbooked / Cancelled upcoming session: Book seat button */}
                 {isUserRole && !isBooked && !isPast && !isFull && (
                   <Button
                     variant="primary"
@@ -348,7 +471,7 @@ export const SessionDetailPage = () => {
                     onClick={handleBookSession}
                     isLoading={isBooking}
                   >
-                    Book This Seat Now
+                    {isCancelled ? 'Re-book Seat' : 'Book This Seat Now'}
                   </Button>
                 )}
 

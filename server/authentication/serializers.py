@@ -18,12 +18,18 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating user profile details including role."""
+    """Serializer for updating basic user profile details (e.g. name)."""
 
     class Meta:
         model = User
         fields = ('id', 'email', 'name', 'role')
-        read_only_fields = ('id', 'email')
+        read_only_fields = ('id', 'email', 'role')
+
+    def validate_name(self, value):
+        cleaned = value.strip() if isinstance(value, str) else ''
+        if not cleaned:
+            raise serializers.ValidationError("Name cannot be blank.")
+        return cleaned
 
 
 class RegisterSerializer(serializers.ModelSerializer):

@@ -25,4 +25,5 @@ export interface AuthContextType {
   logout: () => void
   refreshUser: () => Promise<AuthUser | null>
   updateUserRole: (role: UserRole) => Promise<void>
+  updateUserProfile: (data: { name: string }) => Promise<AuthUser>
 }

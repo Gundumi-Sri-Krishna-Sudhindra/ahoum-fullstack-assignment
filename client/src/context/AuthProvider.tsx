@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import {
   getMe,
   updateMe,
+  updateProfile,
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefreshToken,
@@ -166,6 +167,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const updateUserProfile = async (data: { name: string }): Promise<AuthUser> => {
+    const updated = await updateProfile(data)
+    if (updated) {
+      setUser(updated)
+    }
+    return updated
+  }
+
   const refreshUser = async (): Promise<AuthUser | null> => {
     try {
       const profile = await getMe()
@@ -190,6 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         refreshUser,
         updateUserRole,
+        updateUserProfile,
       }}
     >
       {children}

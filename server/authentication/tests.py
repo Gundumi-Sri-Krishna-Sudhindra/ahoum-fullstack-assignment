@@ -157,3 +157,115 @@ class StandardAuthRegressionTests(TestCase):
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
         self.assertEqual(me_response.data['email'], 'standard_user@example.com')
         self.assertEqual(me_response.data['role'], 'USER')
+
+
+class UserProfileUpdateTests(TestCase):
+    """Comprehensive tests for user profile editing and field protection."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email='alice@example.com',
+            name='Alice Wonderland',
+            password='OriginalPassword123!',
+            role=User.Role.USER,
+        )
+
+    def test_authenticated_user_can_update_own_name(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/auth/me/', {'name': 'Alice Liddell'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Alice Liddell')
+        self.assertEqual(response.data['email'], 'alice@example.com')
+        self.assertEqual(response.data['role'], 'USER')
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.name, 'Alice Liddell')
+
+    def test_unauthenticated_user_cannot_update_profile(self):
+        response = self.client.patch('/api/auth/me/', {'name': 'Hacker Name'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_cannot_modify_protected_fields(self):
+        self.client.force_authenticate(user=self.user)
+        payload = {
+            'name': 'Alice Updated',
+            'role': User.Role.CREATOR,
+            'email': 'evil_hijack@example.com',
+            'id': 99999,
+        }
+        response = self.client.patch('/api/auth/me/', payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Alice Updated')
+        self.assertEqual(response.data['role'], 'USER')
+        self.assertEqual(response.data['email'], 'alice@example.com')
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.name, 'Alice Updated')
+        self.assertEqual(self.user.role, User.Role.USER)
+        self.assertEqual(self.user.email, 'alice@example.com')
+
+    def test_empty_or_whitespace_name_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+
+        # Empty string
+        res1 = self.client.patch('/api/auth/me/', {'name': ''})
+        self.assertEqual(res1.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', res1.data)
+
+        # Whitespace only
+        res2 = self.client.patch('/api/auth/me/', {'name': '    '})
+        self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', res2.data)
+
+        # Name remains unchanged in DB
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.name, 'Alice Wonderland')
+
+    def test_password_remains_intact_after_profile_update(self):
+        self.client.force_authenticate(user=self.user)
+        self.client.patch('/api/auth/me/', {'name': 'Alice Renamed'})
+
+        # Verify login with original password still succeeds
+        self.client.logout()
+        login_res = self.client.post(
+            '/api/auth/login/',
+            {'email': 'alice@example.com', 'password': 'OriginalPassword123!'},
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(login_res.data['user']['name'], 'Alice Renamed')
+
+    def test_github_oauth_user_can_update_name_and_persist_across_relogin(self):
+        # Create GitHub OAuth user without usable password
+        github_user = User.objects.create_user(
+            email='gh_dev@example.com',
+            name='GitHub Original Name',
+            password=None,
+            role=User.Role.USER,
+        )
+        self.assertFalse(github_user.has_usable_password())
+
+        # 1. Update name via PATCH /api/auth/me/
+        self.client.force_authenticate(user=github_user)
+        patch_res = self.client.patch('/api/auth/me/', {'name': 'GitHub Custom Alias'})
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(patch_res.data['name'], 'GitHub Custom Alias')
+
+        # 2. Simulate subsequent GitHub login with mock OAuth returning original GitHub profile name
+        with patch('authentication.views.exchange_code_for_token') as mock_exchange, \
+             patch('authentication.views.get_github_user_info') as mock_info:
+            mock_exchange.return_value = 'gho_new_token_999'
+            mock_info.return_value = {
+                'email': 'gh_dev@example.com',
+                'name': 'GitHub Original Name (from upstream)',
+            }
+
+            login_res = self.client.post('/api/auth/github/', {'code': 'oauth_code_xyz'})
+            self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+            # Custom name must be preserved and NOT overwritten
+            self.assertEqual(login_res.data['user']['name'], 'GitHub Custom Alias')
+
+        github_user.refresh_from_db()
+        self.assertEqual(github_user.name, 'GitHub Custom Alias')

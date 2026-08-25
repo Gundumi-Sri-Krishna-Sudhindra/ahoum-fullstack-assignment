@@ -32,9 +32,17 @@ export function getMe() {
 }
 
 /**
- * Update the profile/role of the currently authenticated user.
- * @param {Partial<{ name: string, role: string }>} data
+ * Update the profile details of the currently authenticated user (e.g. name).
+ * @param {Partial<{ name: string, role?: string }>} data
+ */
+export function updateProfile(data) {
+  return apiPatch('/auth/me/', data)
+}
+
+/**
+ * Alias for updateProfile.
+ * @param {Partial<{ name: string, role?: string }>} data
  */
 export function updateMe(data) {
-  return apiPatch('/auth/me/', data)
+  return updateProfile(data)
 }

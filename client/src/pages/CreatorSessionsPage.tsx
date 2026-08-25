@@ -16,6 +16,7 @@ import {
 import { Badge } from '../components/ui/Badge'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
+import { DeleteSessionModal } from '../components/sessions/DeleteSessionModal'
 
 export interface AttendeeItem {
   id: number | string
@@ -44,7 +45,9 @@ export interface CreatorSessionItem {
 export const CreatorSessionsPage = () => {
   const [sessions, setSessions] = useState<CreatorSessionItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [deletingId, setDeletingId] = useState<number | string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedSessionForDelete, setSelectedSessionForDelete] =
+    useState<CreatorSessionItem | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -91,28 +94,23 @@ export const CreatorSessionsPage = () => {
     }
   }, [refreshTrigger])
 
-  const handleDeleteSession = async (id: number | string, title: string) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete session "${title}"? This action cannot be undone.`
-      )
-    ) {
-      return
-    }
+  const handleConfirmDeleteSession = async () => {
+    if (!selectedSessionForDelete) return
 
-    setDeletingId(id)
+    setIsDeleting(true)
     setErrorMsg(null)
     setSuccessMsg(null)
 
     try {
-      await deleteSession(id)
-      setSuccessMsg(`Session "${title}" was successfully deleted.`)
+      await deleteSession(selectedSessionForDelete.id)
+      setSuccessMsg(`Session "${selectedSessionForDelete.title}" was successfully deleted.`)
+      setSelectedSessionForDelete(null)
       setRefreshTrigger((prev) => prev + 1)
     } catch (err: unknown) {
       const e = err as { message?: string }
       setErrorMsg(e?.message || 'Failed to delete session. Please try again.')
     } finally {
-      setDeletingId(null)
+      setIsDeleting(false)
     }
   }
 
@@ -151,6 +149,16 @@ export const CreatorSessionsPage = () => {
 
   return (
     <PageContainer maxWidth="7xl">
+      {/* Custom Delete Session Modal */}
+      <DeleteSessionModal
+        isOpen={!!selectedSessionForDelete}
+        sessionTitle={selectedSessionForDelete?.title}
+        bookingCount={selectedSessionForDelete?.booking_count}
+        isLoading={isDeleting}
+        onClose={() => setSelectedSessionForDelete(null)}
+        onConfirm={handleConfirmDeleteSession}
+      />
+
       <PageHeader
         title="My Hosted Sessions"
         description="View and manage all your live workshops, inspect attendee rosters, edit schedules, and manage seat capacities."
@@ -407,10 +415,10 @@ export const CreatorSessionsPage = () => {
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() =>
-                            handleDeleteSession(session.id, session.title)
+                          onClick={() => setSelectedSessionForDelete(session)}
+                          isLoading={
+                            isDeleting && selectedSessionForDelete?.id === session.id
                           }
-                          isLoading={deletingId === session.id}
                         >
                           Delete
                         </Button>
