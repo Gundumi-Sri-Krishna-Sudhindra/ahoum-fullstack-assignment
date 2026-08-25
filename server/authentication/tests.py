@@ -158,6 +158,20 @@ class StandardAuthRegressionTests(TestCase):
         self.assertEqual(me_response.data['email'], 'standard_user@example.com')
         self.assertEqual(me_response.data['role'], 'USER')
 
+    def test_register_with_creator_role(self):
+        register_payload = {
+            'email': 'creator_user@example.com',
+            'name': 'Creator User',
+            'password': 'SecurePassword123!',
+            'role': 'CREATOR',
+        }
+        reg_response = self.client.post('/api/auth/register/', register_payload)
+        self.assertEqual(reg_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(reg_response.data['user']['role'], 'CREATOR')
+
+        created_user = User.objects.get(email='creator_user@example.com')
+        self.assertEqual(created_user.role, User.Role.CREATOR)
+
 
 class UserProfileUpdateTests(TestCase):
     """Comprehensive tests for user profile editing and field protection."""
@@ -269,3 +283,24 @@ class UserProfileUpdateTests(TestCase):
 
         github_user.refresh_from_db()
         self.assertEqual(github_user.name, 'GitHub Custom Alias')
+
+    def test_authenticated_user_can_set_role(self):
+        self.client.force_authenticate(user=self.user)
+        self.assertEqual(self.user.role, 'USER')
+
+        response = self.client.post('/api/auth/role/', {'role': 'CREATOR'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['role'], 'CREATOR')
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.role, 'CREATOR')
+
+    def test_invalid_role_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/auth/role/', {'role': 'SUPERADMIN'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Invalid role', response.data['detail'])
+
+    def test_unauthenticated_cannot_set_role(self):
+        response = self.client.post('/api/auth/role/', {'role': 'CREATOR'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

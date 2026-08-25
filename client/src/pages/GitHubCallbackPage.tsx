@@ -43,9 +43,24 @@ export const GitHubCallbackPage = () => {
 
         // Check if this is a newly registered user account via GitHub
         if (loggedInUser.is_new_user) {
-          setAuthenticatedUser(loggedInUser)
-          setShowRoleModal(true)
+          const preselectedRole = localStorage.getItem(
+            'ahoum_oauth_role'
+          ) as UserRole | null
+          localStorage.removeItem('ahoum_oauth_role')
+
+          if (preselectedRole === 'CREATOR' || preselectedRole === 'USER') {
+            await updateUserRole(preselectedRole)
+            if (preselectedRole === 'CREATOR') {
+              navigate('/creator', { replace: true })
+            } else {
+              navigate('/dashboard', { replace: true })
+            }
+          } else {
+            setAuthenticatedUser(loggedInUser)
+            setShowRoleModal(true)
+          }
         } else {
+          localStorage.removeItem('ahoum_oauth_role')
           // Existing user logging in -> directly redirect based on database role
           if (loggedInUser.role === 'CREATOR') {
             navigate('/creator', { replace: true })
@@ -63,7 +78,7 @@ export const GitHubCallbackPage = () => {
     }
 
     processOAuth()
-  }, [searchParams, loginWithGitHub, navigate])
+  }, [searchParams, loginWithGitHub, updateUserRole, navigate])
 
   const handleRoleConfirmed = async (role: UserRole) => {
     await updateUserRole(role)

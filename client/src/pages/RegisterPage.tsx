@@ -6,7 +6,6 @@ import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
-import { RoleConfirmationModal } from '../components/auth/RoleConfirmationModal'
 import type { UserRole } from '../context/types'
 
 export const RegisterPage = () => {
@@ -14,15 +13,12 @@ export const RegisterPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [selectedRole, setSelectedRole] = useState<UserRole>('USER')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState(false)
 
-  // Role confirmation modal state
-  const [showRoleModal, setShowRoleModal] = useState(false)
-  const [registeredUserName, setRegisteredUserName] = useState('')
-
-  const { register, updateUserRole } = useAuth()
+  const { register } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -64,11 +60,14 @@ export const RegisterPage = () => {
         name: name.trim(),
         email: email.trim(),
         password,
+        role: selectedRole,
       })
 
-      setRegisteredUserName(newUser.name || name)
-      // Open role selection modal after successful signup
-      setShowRoleModal(true)
+      if (newUser.role === 'CREATOR') {
+        navigate('/creator', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err: unknown) {
       const e = err as { message?: string }
       setErrorMsg(
@@ -79,20 +78,11 @@ export const RegisterPage = () => {
     }
   }
 
-  const handleRoleConfirmed = async (role: UserRole) => {
-    await updateUserRole(role)
-    setShowRoleModal(false)
-    if (role === 'CREATOR') {
-      navigate('/creator', { replace: true })
-    } else {
-      navigate('/dashboard', { replace: true })
-    }
-  }
-
   const handleGitHubLogin = async () => {
     setErrorMsg(null)
     setIsOAuthLoading(true)
     try {
+      localStorage.setItem('ahoum_oauth_role', selectedRole)
       const res = await getGitHubAuthUrl()
       if (res && res.url) {
         window.location.href = res.url
@@ -111,14 +101,6 @@ export const RegisterPage = () => {
 
   return (
     <PageContainer maxWidth="sm" className="py-12 sm:py-16">
-      {/* Role Selection Modal */}
-      <RoleConfirmationModal
-        isOpen={showRoleModal}
-        userName={registeredUserName}
-        defaultRole="USER"
-        onConfirm={handleRoleConfirmed}
-      />
-
       <div className="border border-slate-200 p-8 sm:p-10 rounded-sm bg-white shadow-xs space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -190,6 +172,75 @@ export const RegisterPage = () => {
             placeholder="you@example.com"
             disabled={isSubmitting || isOAuthLoading}
           />
+
+          {/* Role Selection */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+              I Want to Join As
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedRole('USER')}
+                className={`p-3.5 border text-left rounded-sm transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                  selectedRole === 'USER'
+                    ? 'border-blue-600 bg-blue-50/60 ring-1 ring-blue-600'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-bold text-sm text-slate-900">
+                    Learner / Attendee
+                  </span>
+                  <span
+                    className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      selectedRole === 'USER'
+                        ? 'border-blue-600 bg-blue-600'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {selectedRole === 'USER' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Browse catalog & book seats in live workshops
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRole('CREATOR')}
+                className={`p-3.5 border text-left rounded-sm transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                  selectedRole === 'CREATOR'
+                    ? 'border-blue-600 bg-blue-50/60 ring-1 ring-blue-600'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-bold text-sm text-slate-900">
+                    Creator / Host
+                  </span>
+                  <span
+                    className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      selectedRole === 'CREATOR'
+                        ? 'border-blue-600 bg-blue-600'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {selectedRole === 'CREATOR' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Create sessions & manage attendee rosters
+                </p>
+              </button>
+            </div>
+          </div>
+
           <Input
             label="Password"
             type="password"
@@ -219,7 +270,7 @@ export const RegisterPage = () => {
             isLoading={isSubmitting}
             disabled={isSubmitting || isOAuthLoading}
           >
-            Create Account
+            Create {selectedRole === 'CREATOR' ? 'Creator' : 'Learner'} Account
           </Button>
         </form>
 

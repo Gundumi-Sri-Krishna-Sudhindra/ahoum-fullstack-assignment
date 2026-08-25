@@ -35,6 +35,11 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializer for registering a new user."""
 
+    role = serializers.ChoiceField(
+        choices=User.Role.choices,
+        default=User.Role.USER,
+        required=False,
+    )
     password = serializers.CharField(
         write_only=True,
         required=True,
@@ -43,7 +48,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'name', 'password')
+        fields = ('id', 'email', 'name', 'password', 'role')
 
     def validate_email(self, value):
         normalized_email = value.lower().strip()
@@ -56,11 +61,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        role = validated_data.get('role', User.Role.USER)
         user = User.objects.create_user(
             email=validated_data['email'],
             name=validated_data['name'],
             password=validated_data['password'],
-            role=User.Role.USER,
+            role=role,
         )
         return user
 

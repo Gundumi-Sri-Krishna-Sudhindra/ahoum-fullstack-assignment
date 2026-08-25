@@ -135,3 +135,23 @@ class GitHubLoginView(views.APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class SetRoleView(views.APIView):
+    """
+    Endpoint allowing authenticated users to select/confirm their role during onboarding.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        role = request.data.get('role')
+        if role not in [User.Role.USER, User.Role.CREATOR]:
+            return Response(
+                {"detail": "Invalid role. Must be 'USER' or 'CREATOR'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.role = role
+        request.user.save(update_fields=['role'])
+        return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)

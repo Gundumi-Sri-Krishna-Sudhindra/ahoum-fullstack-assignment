@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import {
   getMe,
-  updateMe,
   updateProfile,
+  setUserRole as apiSetUserRole,
   login as apiLogin,
   register as apiRegister,
   refreshToken as apiRefreshToken,
@@ -124,16 +124,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email: data.email,
       name: data.name,
       password: data.password,
+      role: data.role || 'USER',
     })
     if (res?.access) {
       setTokens(res.access, res.refresh)
     }
     const profile = res?.user || (await getMe())
-    if (data.role) {
-      const updated = await updateMe({ role: data.role })
-      setUser(updated)
-      return updated
-    }
     setUser(profile)
     return profile
   }
@@ -158,7 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateUserRole = async (role: UserRole) => {
     setUser((prev) => (prev ? { ...prev, role } : null))
     try {
-      const updated = await updateMe({ role })
+      const updated = await apiSetUserRole(role)
       if (updated) {
         setUser(updated)
       }

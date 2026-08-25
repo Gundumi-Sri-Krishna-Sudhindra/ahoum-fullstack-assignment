@@ -40,6 +40,14 @@ export function updateProfile(data) {
 }
 
 /**
+ * Explicitly set or confirm the user's role during onboarding.
+ * @param {string} role - 'USER' or 'CREATOR'
+ */
+export function setUserRole(role) {
+  return apiPost('/auth/role/', { role })
+}
+
+/**
  * Alias for updateProfile.
  * @param {Partial<{ name: string, role?: string }>} data
  */
