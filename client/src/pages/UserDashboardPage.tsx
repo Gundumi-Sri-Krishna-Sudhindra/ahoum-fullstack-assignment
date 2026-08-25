@@ -252,7 +252,7 @@ export const UserDashboardPage = () => {
                         <TableCell>
                           {isFull ? (
                             <Badge variant="danger" size="md">
-                              FULL
+                              SEAT IS FULL
                             </Badge>
                           ) : (
                             <Badge

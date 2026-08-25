@@ -333,13 +333,13 @@ export const SessionDetailPage = () => {
                   <Badge variant="neutral" size="lg">
                     Reservation Cancelled
                   </Badge>
-                ) : isPast ? (
-                  <Badge variant="neutral" size="lg">
-                    Past Session
-                  </Badge>
                 ) : isFull ? (
                   <Badge variant="danger" size="lg">
-                    Session Full
+                    Seat Is Full
+                  </Badge>
+                ) : isPast ? (
+                  <Badge variant="neutral" size="lg">
+                    Session Has Ended
                   </Badge>
                 ) : (
                   <Badge variant="success" size="lg">
@@ -463,7 +463,21 @@ export const SessionDetailPage = () => {
                   </>
                 )}
 
-                {/* Unbooked / Cancelled upcoming session: Book seat button */}
+                {/* When full: show Seat Is Full button */}
+                {isUserRole && !isBooked && isFull && (
+                  <Button variant="secondary" size="md" disabled className="bg-red-50 text-red-700 border-red-200">
+                    Seat Is Full
+                  </Button>
+                )}
+
+                {/* When not full but past session */}
+                {isUserRole && !isBooked && !isFull && isPast && (
+                  <Button variant="secondary" size="md" disabled>
+                    Session Has Ended
+                  </Button>
+                )}
+
+                {/* Unbooked / Cancelled upcoming session with capacity: Book seat button */}
                 {isUserRole && !isBooked && !isPast && !isFull && (
                   <Button
                     variant="primary"
@@ -472,18 +486,6 @@ export const SessionDetailPage = () => {
                     isLoading={isBooking}
                   >
                     {isCancelled ? 'Re-book Seat' : 'Book This Seat Now'}
-                  </Button>
-                )}
-
-                {isUserRole && !isBooked && isPast && (
-                  <Button variant="secondary" size="md" disabled>
-                    Session Has Ended
-                  </Button>
-                )}
-
-                {isUserRole && !isBooked && !isPast && isFull && (
-                  <Button variant="secondary" size="md" disabled>
-                    Session Fully Booked
                   </Button>
                 )}
               </div>

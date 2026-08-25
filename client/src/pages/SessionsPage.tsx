@@ -284,13 +284,13 @@ export const SessionsPage = () => {
                             ✓ Booked
                           </Badge>
                         )}
-                        {item.is_past ? (
+                        {isFull ? (
+                          <Badge variant="danger" size="md">
+                            SEAT IS FULL ({item.capacity} / {item.capacity})
+                          </Badge>
+                        ) : item.is_past ? (
                           <Badge variant="neutral" size="md">
                             PAST SESSION
-                          </Badge>
-                        ) : isFull ? (
-                          <Badge variant="danger" size="md">
-                            FULL ({item.capacity} / {item.capacity})
                           </Badge>
                         ) : (
                           <Badge
