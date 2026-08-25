@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from bookings.models import Booking
 from users.models import User
 from .models import Session
 
@@ -44,11 +45,32 @@ class SessionAPITests(APITestCase):
         self.assertEqual(response.data[0]["title"], "Meditation 101")
         self.assertEqual(response.data[0]["remaining_seats"], 10)
 
-    def test_public_can_retrieve_session_detail(self):
+    def test_public_can_retrieve_session_detail_without_attendees(self):
         response = self.client.get(f"/api/sessions/{self.session_1.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["title"], "Meditation 101")
         self.assertEqual(response.data["creator"]["email"], "creator1@example.com")
+        self.assertIsNone(response.data.get("attendees"))
+
+    def test_creator_can_view_attendees_on_own_session_detail(self):
+        # Create booking for user_1
+        Booking.objects.create(session=self.session_1, user=self.user_1, status=Booking.Status.ACTIVE)
+
+        self.client.force_authenticate(user=self.creator_1)
+        response = self.client.get(f"/api/sessions/{self.session_1.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data.get("attendees"))
+        self.assertEqual(len(response.data["attendees"]), 1)
+        self.assertEqual(response.data["attendees"][0]["user"]["email"], "user1@example.com")
+        self.assertEqual(response.data["attendees"][0]["user"]["name"], "User One")
+
+    def test_other_creator_cannot_view_attendees(self):
+        Booking.objects.create(session=self.session_1, user=self.user_1, status=Booking.Status.ACTIVE)
+
+        self.client.force_authenticate(user=self.creator_2)
+        response = self.client.get(f"/api/sessions/{self.session_1.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data.get("attendees"))
 
     def test_user_cannot_create_session(self):
         self.client.force_authenticate(user=self.user_1)

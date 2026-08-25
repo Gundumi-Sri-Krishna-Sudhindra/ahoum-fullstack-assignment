@@ -14,6 +14,13 @@ class CreatorSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class SessionAttendeeBookingSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    user = CreatorSummarySerializer(read_only=True)
+    status = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+
 class SessionSerializer(serializers.ModelSerializer):
     creator = CreatorSummarySerializer(read_only=True)
     booking_count = serializers.IntegerField(source='active_booking_count', read_only=True)
@@ -22,6 +29,7 @@ class SessionSerializer(serializers.ModelSerializer):
     is_booked = serializers.SerializerMethodField()
     booking_id = serializers.SerializerMethodField()
     booking_status = serializers.SerializerMethodField()
+    attendees = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
@@ -39,6 +47,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'is_booked',
             'booking_id',
             'booking_status',
+            'attendees',
             'created_at',
             'updated_at',
         )
@@ -51,6 +60,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'is_booked',
             'booking_id',
             'booking_status',
+            'attendees',
             'created_at',
             'updated_at',
         )
@@ -91,6 +101,15 @@ class SessionSerializer(serializers.ModelSerializer):
             return booking.status if booking else None
         booking = obj.bookings.filter(user=request.user).order_by('-created_at').first()
         return booking.status if booking else None
+
+    def get_attendees(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+        if obj.creator_id == request.user.id:
+            active_bookings = obj.bookings.filter(status='ACTIVE').select_related('user').order_by('created_at')
+            return SessionAttendeeBookingSerializer(active_bookings, many=True).data
+        return None
 
 
 class SessionCreateUpdateSerializer(serializers.ModelSerializer):
@@ -137,19 +156,5 @@ class SessionCreateUpdateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class SessionAttendeeBookingSerializer(serializers.Serializer):
-    id = serializers.IntegerField(read_only=True)
-    user = CreatorSummarySerializer(read_only=True)
-    status = serializers.CharField(read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-
-
 class CreatorSessionDetailSerializer(SessionSerializer):
-    attendees = serializers.SerializerMethodField()
-
-    class Meta(SessionSerializer.Meta):
-        fields = SessionSerializer.Meta.fields + ('attendees',)
-
-    def get_attendees(self, obj):
-        active_bookings = obj.bookings.filter(status='ACTIVE').select_related('user')
-        return SessionAttendeeBookingSerializer(active_bookings, many=True).data
+    pass

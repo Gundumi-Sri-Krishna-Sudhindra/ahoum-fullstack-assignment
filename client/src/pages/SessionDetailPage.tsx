@@ -143,6 +143,12 @@ export const SessionDetailPage = () => {
   const isCancelled =
     effectiveBookingStatus === 'CANCELLED' && !session?.is_booked
 
+  const isOwnSession =
+    isCreatorRole &&
+    Boolean(
+      session?.creator?.id && user?.id && String(session.creator.id) === String(user.id)
+    )
+
   return (
     <PageContainer maxWidth="lg">
       {/* Custom Seat Cancellation Modal */}
@@ -491,6 +497,88 @@ export const SessionDetailPage = () => {
               </div>
             </div>
           </div>
+
+          {/* Creator View: List of Booked Participants */}
+          {isCreatorRole && (isOwnSession || Boolean(session.attendees)) && (
+            <div className="border border-slate-200 rounded-sm bg-white p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Booked Participants
+                    </h2>
+                    <Badge variant="primary" size="md">
+                      {session.booking_count} / {session.capacity} Confirmed
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Live attendee roster for learners who have reserved seats in this session.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-sm">
+                    Fill Rate: {session.capacity > 0 ? Math.round((session.booking_count / session.capacity) * 100) : 0}%
+                  </span>
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-sm">
+                    {session.remaining_seats} Seats Available
+                  </span>
+                </div>
+              </div>
+
+              {session.attendees && session.attendees.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-700">
+                    <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Participant Name</th>
+                        <th className="px-4 py-3">Email Address</th>
+                        <th className="px-4 py-3">Reserved On</th>
+                        <th className="px-4 py-3 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {session.attendees.map((attendee, index) => (
+                        <tr
+                          key={attendee.id}
+                          className="hover:bg-slate-50/70 transition-colors"
+                        >
+                          <td className="px-4 py-3.5 font-medium text-slate-400 text-xs">
+                            {index + 1}
+                          </td>
+                          <td className="px-4 py-3.5 font-bold text-slate-900">
+                            {attendee.user?.name || 'Anonymous Learner'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600">
+                            {attendee.user?.email}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap text-xs">
+                            {formatDateTime(attendee.created_at)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <Badge variant="success" size="sm">
+                              CONFIRMED
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-8 text-center border border-dashed border-slate-200 rounded-sm bg-slate-50/50 space-y-2">
+                  <div className="text-2xl text-slate-400">&bull; &bull; &bull;</div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    No Participants Yet
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Learners haven't booked this workshop yet. Once learners reserve a seat, their details and registration timestamps will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : null}
     </PageContainer>

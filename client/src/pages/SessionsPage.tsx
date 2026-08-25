@@ -18,6 +18,17 @@ import { Badge } from '../components/ui/Badge'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 
+export interface SessionAttendee {
+  id: number | string
+  user: {
+    id: number | string
+    name: string
+    email: string
+  }
+  status: string
+  created_at: string
+}
+
 export interface SessionItem {
   id: number | string
   title: string
@@ -31,6 +42,7 @@ export interface SessionItem {
   is_booked?: boolean
   booking_id?: number | string | null
   booking_status?: 'ACTIVE' | 'CANCELLED' | string | null
+  attendees?: SessionAttendee[] | null
   creator?: {
     id: number | string
     name: string
