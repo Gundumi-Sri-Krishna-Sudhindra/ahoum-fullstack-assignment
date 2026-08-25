@@ -19,6 +19,7 @@ class SessionSerializer(serializers.ModelSerializer):
     booking_count = serializers.IntegerField(source='active_booking_count', read_only=True)
     remaining_seats = serializers.IntegerField(read_only=True)
     is_past = serializers.BooleanField(read_only=True)
+    is_booked = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
@@ -33,6 +34,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'booking_count',
             'remaining_seats',
             'is_past',
+            'is_booked',
             'created_at',
             'updated_at',
         )
@@ -42,9 +44,21 @@ class SessionSerializer(serializers.ModelSerializer):
             'booking_count',
             'remaining_seats',
             'is_past',
+            'is_booked',
             'created_at',
             'updated_at',
         )
+
+    def get_is_booked(self, obj) -> bool:
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        if hasattr(obj, '_prefetched_objects_cache') and 'bookings' in obj._prefetched_objects_cache:
+            return any(
+                b.user_id == request.user.id and b.status == 'ACTIVE'
+                for b in obj.bookings.all()
+            )
+        return obj.bookings.filter(user=request.user, status='ACTIVE').exists()
 
 
 class SessionCreateUpdateSerializer(serializers.ModelSerializer):

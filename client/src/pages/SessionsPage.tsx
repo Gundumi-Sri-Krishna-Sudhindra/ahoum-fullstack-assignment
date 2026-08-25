@@ -28,6 +28,7 @@ export interface SessionItem {
   booking_count: number
   remaining_seats: number
   is_past: boolean
+  is_booked?: boolean
   creator?: {
     id: number | string
     name: string
@@ -275,24 +276,31 @@ export const SessionsPage = () => {
                       {formatDateTime(item.start_time)}
                     </TableCell>
                     <TableCell>
-                      {item.is_past ? (
-                        <Badge variant="neutral" size="md">
-                          PAST SESSION
-                        </Badge>
-                      ) : isFull ? (
-                        <Badge variant="danger" size="md">
-                          FULL ({item.capacity} / {item.capacity})
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant={
-                            item.remaining_seats <= 3 ? 'warning' : 'success'
-                          }
-                          size="md"
-                        >
-                          {item.remaining_seats} / {item.capacity} Available
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {item.is_booked && (
+                          <Badge variant="primary" size="md">
+                            ✓ Booked
+                          </Badge>
+                        )}
+                        {item.is_past ? (
+                          <Badge variant="neutral" size="md">
+                            PAST SESSION
+                          </Badge>
+                        ) : isFull ? (
+                          <Badge variant="danger" size="md">
+                            FULL ({item.capacity} / {item.capacity})
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant={
+                              item.remaining_seats <= 3 ? 'warning' : 'success'
+                            }
+                            size="md"
+                          >
+                            {item.remaining_seats} / {item.capacity} Available
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Link to={`/sessions/${item.id}`}>

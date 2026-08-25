@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMySessions, deleteSession } from '../api/sessions.js'
+import { useAuth } from '../context/useAuth'
+import { getMySessions } from '../api/sessions.js'
 import { PageContainer } from '../components/ui/PageContainer'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
 import {
   Table,
   TableHeader,
@@ -12,43 +14,17 @@ import {
   TableHead,
   TableCell,
 } from '../components/ui/Table'
-import { Badge } from '../components/ui/Badge'
 import { Loading } from '../components/ui/Loading'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
-
-export interface AttendeeItem {
-  id: number | string
-  user: {
-    id: number | string
-    name: string
-    email: string
-  }
-  status: string
-  created_at: string
-}
-
-export interface CreatorSessionItem {
-  id: number | string
-  title: string
-  description?: string
-  start_time: string
-  end_time: string
-  capacity: number
-  booking_count: number
-  remaining_seats: number
-  is_past: boolean
-  attendees?: AttendeeItem[]
-}
+import type { CreatorSessionItem } from './CreatorSessionsPage'
 
 export const CreatorDashboardPage = () => {
+  const { user } = useAuth()
   const [sessions, setSessions] = useState<CreatorSessionItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [deletingId, setDeletingId] = useState<number | string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  // Roster Modal state
+  // Selected session for viewing roster modal
   const [selectedSessionForRoster, setSelectedSessionForRoster] =
     useState<CreatorSessionItem | null>(null)
 
@@ -59,7 +35,7 @@ export const CreatorDashboardPage = () => {
   useEffect(() => {
     let isMounted = true
 
-    const loadMySessions = async () => {
+    const loadDashboardData = async () => {
       setIsLoading(true)
       setErrorMsg(null)
       try {
@@ -70,7 +46,7 @@ export const CreatorDashboardPage = () => {
       } catch (err: unknown) {
         const e = err as { message?: string }
         if (isMounted) {
-          setErrorMsg(e?.message || 'Failed to load your hosted sessions.')
+          setErrorMsg(e?.message || 'Failed to load creator analytics.')
         }
       } finally {
         if (isMounted) {
@@ -79,44 +55,44 @@ export const CreatorDashboardPage = () => {
       }
     }
 
-    loadMySessions()
+    loadDashboardData()
 
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [])
 
-  const handleDeleteSession = async (id: number | string, title: string) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete session "${title}"? This action cannot be undone.`
-      )
-    ) {
-      return
-    }
+  // Analytics Computations
+  const totalSessions = sessions.length
+  const upcomingSessions = sessions.filter((s) => !s.is_past)
+  const completedSessions = sessions.filter((s) => s.is_past)
+  const totalBookings = sessions.reduce((acc, s) => acc + (s.booking_count || 0), 0)
+  const totalCapacity = sessions.reduce((acc, s) => acc + (s.capacity || 0), 0)
+  const averageOccupancy =
+    totalCapacity > 0 ? Math.round((totalBookings / totalCapacity) * 100) : 0
 
-    setDeletingId(id)
-    setErrorMsg(null)
-    setSuccessMsg(null)
-
-    try {
-      await deleteSession(id)
-      setSuccessMsg(`Session "${title}" was successfully deleted.`)
-      setRefreshTrigger((prev) => prev + 1)
-    } catch (err: unknown) {
-      const e = err as { message?: string }
-      setErrorMsg(e?.message || 'Failed to delete session. Please try again.')
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  // Sort upcoming sessions ascending by start time
+  const sortedUpcoming = [...upcomingSessions].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  )
+  const nextSession = sortedUpcoming[0]
 
   const formatDateTime = (isoString?: string) => {
     if (!isoString) return 'TBD'
     const date = new Date(isoString)
     return date.toLocaleString('en-US', {
+      weekday: 'short',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  }
+
+  const formatTimeOnly = (isoString?: string) => {
+    if (!isoString) return ''
+    return new Date(isoString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -127,13 +103,20 @@ export const CreatorDashboardPage = () => {
     <PageContainer maxWidth="7xl">
       <PageHeader
         title="Creator Dashboard"
-        description="Manage your hosted sessions, view real-time attendee rosters, and launch new interactive workshops."
+        description={`Welcome back, ${user?.name || user?.email}. Monitor your workshop engagement, upcoming schedule, and learner bookings.`}
         actions={
-          <Link to="/creator/sessions/new">
-            <Button variant="primary" size="md">
-              + Host New Session
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/creator/sessions">
+              <Button variant="outline" size="md">
+                My Sessions
+              </Button>
+            </Link>
+            <Link to="/creator/sessions/new">
+              <Button variant="primary" size="md">
+                + Host New Session
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -147,19 +130,25 @@ export const CreatorDashboardPage = () => {
                   Confirmed Attendee Roster
                 </h3>
                 <p className="text-xs text-slate-600 mt-1">
-                  Session: <span className="font-semibold text-slate-800">{selectedSessionForRoster.title}</span> ({selectedSessionForRoster.booking_count} / {selectedSessionForRoster.capacity} seats confirmed)
+                  Session:{' '}
+                  <span className="font-semibold text-slate-800">
+                    {selectedSessionForRoster.title}
+                  </span>{' '}
+                  ({selectedSessionForRoster.booking_count} /{' '}
+                  {selectedSessionForRoster.capacity} seats confirmed)
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedSessionForRoster(null)}
-                className="text-slate-400 hover:text-slate-700 text-lg font-bold p-1"
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold p-1 cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            {(!selectedSessionForRoster.attendees || selectedSessionForRoster.attendees.length === 0) ? (
+            {!selectedSessionForRoster.attendees ||
+            selectedSessionForRoster.attendees.length === 0 ? (
               <div className="py-8 text-center text-slate-500 text-sm">
                 No active bookings registered for this session yet.
               </div>
@@ -203,120 +192,327 @@ export const CreatorDashboardPage = () => {
         </div>
       )}
 
-      <div className="space-y-6">
-        {successMsg && (
-          <ErrorMessage
-            title="Success"
-            message={successMsg}
-            variant="success"
-          />
-        )}
-
+      <div className="space-y-8">
         {errorMsg && (
           <ErrorMessage
-            title="Notice"
+            title="Dashboard Notice"
             message={errorMsg}
             variant="error"
           />
         )}
 
         {isLoading ? (
-          <div className="min-h-[35vh] flex items-center justify-center border border-slate-200 rounded-sm bg-white p-12">
-            <Loading size="lg" label="Loading your creator sessions..." />
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="border border-slate-200 rounded-sm bg-white p-12 text-center space-y-4">
-            <div className="text-3xl text-slate-400">&bull; &bull; &bull;</div>
-            <h3 className="text-xl font-bold text-slate-900">
-              No Hosted Sessions Yet
-            </h3>
-            <p className="text-sm text-slate-600 max-w-md mx-auto">
-              You haven't created any workshop sessions yet. Launch your first live session to start accepting attendees.
-            </p>
-            <div className="pt-2">
-              <Link to="/creator/sessions/new">
-                <Button variant="primary" size="md">
-                  + Host Your First Session
-                </Button>
-              </Link>
-            </div>
+          <div className="min-h-[40vh] flex items-center justify-center border border-slate-200 rounded-sm bg-white p-12 shadow-xs">
+            <Loading size="lg" label="Loading creator analytics and schedule..." />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SESSION TITLE</TableHead>
-                <TableHead>START TIME</TableHead>
-                <TableHead>END TIME</TableHead>
-                <TableHead>ATTENDEES</TableHead>
-                <TableHead className="text-right">ACTIONS</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map((session) => {
-                const isPast = session.is_past
+          <>
+            {/* KPI Stat Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-200 p-5 rounded-sm shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Total Hosted Sessions
+                  </span>
+                  <span className="text-xl">📚</span>
+                </div>
+                <div className="text-3xl font-extrabold text-slate-900">
+                  {totalSessions}
+                </div>
+                <p className="text-xs text-slate-500">
+                  <span className="font-semibold text-emerald-600">
+                    {upcomingSessions.length} active
+                  </span>{' '}
+                  &bull; {completedSessions.length} completed
+                </p>
+              </div>
 
-                return (
-                  <TableRow key={session.id}>
-                    <TableCell className="font-bold text-slate-900">
-                      <Link
-                        to={`/sessions/${session.id}`}
-                        className="hover:text-blue-700 hover:underline"
-                      >
-                        {session.title}
-                      </Link>
-                      {isPast && (
-                        <span className="ml-2 inline-block px-1.5 py-0.2 text-[10px] uppercase font-bold bg-slate-100 text-slate-600 border border-slate-300 rounded-sm">
-                          Completed
+              <div className="bg-white border border-slate-200 p-5 rounded-sm shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Total Learners Booked
+                  </span>
+                  <span className="text-xl">👥</span>
+                </div>
+                <div className="text-3xl font-extrabold text-blue-700">
+                  {totalBookings}
+                </div>
+                <p className="text-xs text-slate-500">
+                  Across all published workshop sessions
+                </p>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-5 rounded-sm shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Average Fill Rate
+                  </span>
+                  <span className="text-xl">📈</span>
+                </div>
+                <div className="text-3xl font-extrabold text-slate-900">
+                  {averageOccupancy}%
+                </div>
+                <p className="text-xs text-slate-500">
+                  {totalBookings} booked of {totalCapacity} total seat capacity
+                </p>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-5 rounded-sm shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Upcoming Live Sessions
+                  </span>
+                  <span className="text-xl">⏳</span>
+                </div>
+                <div className="text-3xl font-extrabold text-indigo-600">
+                  {upcomingSessions.length}
+                </div>
+                <p className="text-xs text-slate-500">
+                  Scheduled and open for booking
+                </p>
+              </div>
+            </div>
+
+            {/* Next Live Session Spotlight */}
+            {nextSession ? (
+              <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-sm p-6 sm:p-8 shadow-md relative overflow-hidden">
+                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 opacity-10 text-9xl pointer-events-none font-bold">
+                  LIVE
+                </div>
+                <div className="relative z-10 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="px-2.5 py-1 text-xs uppercase font-bold tracking-wider bg-blue-500 text-white rounded-sm">
+                      Next Live Session
+                    </span>
+                    <span className="text-xs text-blue-200 font-medium">
+                      {formatDateTime(nextSession.start_time)} &ndash;{' '}
+                      {formatTimeOnly(nextSession.end_time)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 max-w-3xl">
+                    <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                      {nextSession.title}
+                    </h3>
+                    {nextSession.description && (
+                      <p className="text-sm text-blue-100 line-clamp-2">
+                        {nextSession.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-4 border-t border-blue-800/60">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-white/10 px-3 py-1.5 rounded-sm backdrop-blur-xs">
+                        <span className="text-xs text-blue-200 block">
+                          Confirmed Bookings
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell>{formatDateTime(session.start_time)}</TableCell>
-                    <TableCell>{formatDateTime(session.end_time)}</TableCell>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSessionForRoster(session)}
-                        className="cursor-pointer hover:opacity-80 transition-opacity"
-                        title="Click to view attendee roster"
-                      >
-                        <Badge
-                          variant={session.booking_count > 0 ? 'primary' : 'neutral'}
-                          size="md"
-                        >
-                          {session.booking_count} / {session.capacity} Booked &#128065;
-                        </Badge>
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link to={`/sessions/${session.id}`}>
-                          <Button variant="outline" size="sm">
-                            View
-                          </Button>
-                        </Link>
-                        <Link to={`/creator/sessions/${session.id}/edit`}>
-                          <Button variant="outline" size="sm">
-                            Edit
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            handleDeleteSession(session.id, session.title)
-                          }
-                          isLoading={deletingId === session.id}
-                        >
-                          Delete
-                        </Button>
+                        <span className="text-base font-bold text-white">
+                          {nextSession.booking_count} / {nextSession.capacity} seats
+                        </span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                      <div className="bg-white/10 px-3 py-1.5 rounded-sm backdrop-blur-xs">
+                        <span className="text-xs text-blue-200 block">
+                          Remaining
+                        </span>
+                        <span className="text-base font-bold text-emerald-300">
+                          {nextSession.remaining_seats} available
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setSelectedSessionForRoster(nextSession)}
+                      >
+                        View Attendee Roster
+                      </Button>
+                      <Link to={`/creator/sessions/${nextSession.id}/edit`}>
+                        <Button variant="outline" size="sm" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                          Edit
+                        </Button>
+                      </Link>
+                      <Link to={`/sessions/${nextSession.id}`}>
+                        <Button variant="outline" size="sm" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                          Public Page &rarr;
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white border border-dashed border-slate-300 rounded-sm p-8 text-center space-y-3">
+                <div className="text-3xl">🚀</div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  No Upcoming Sessions Scheduled
+                </h3>
+                <p className="text-sm text-slate-600 max-w-md mx-auto">
+                  Keep your learners engaged! Host a new workshop or teaching session to open up bookings.
+                </p>
+                <div className="pt-2">
+                  <Link to="/creator/sessions/new">
+                    <Button variant="primary" size="md">
+                      + Host New Session
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Schedule Quick Table */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Upcoming Workshop Schedule
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Your scheduled sessions ordered by earliest start date
+                  </p>
+                </div>
+                <Link
+                  to="/creator/sessions"
+                  className="text-sm font-semibold text-blue-700 hover:underline"
+                >
+                  View All Sessions ({sessions.length}) &rarr;
+                </Link>
+              </div>
+
+              {sortedUpcoming.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-sm p-8 text-center text-slate-500 text-sm">
+                  You have no upcoming sessions scheduled. Check the{' '}
+                  <Link
+                    to="/creator/sessions"
+                    className="text-blue-700 font-semibold hover:underline"
+                  >
+                    My Sessions
+                  </Link>{' '}
+                  tab to view your past workshop history.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>SESSION TITLE</TableHead>
+                      <TableHead>START TIME</TableHead>
+                      <TableHead>ATTENDEE ROSTER</TableHead>
+                      <TableHead className="text-right">QUICK ACTIONS</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedUpcoming.slice(0, 5).map((session) => (
+                      <TableRow key={session.id}>
+                        <TableCell className="font-bold text-slate-900">
+                          <Link
+                            to={`/sessions/${session.id}`}
+                            className="hover:text-blue-700 hover:underline text-base font-semibold"
+                          >
+                            {session.title}
+                          </Link>
+                          {session.description && (
+                            <span className="text-xs text-slate-500 block truncate font-normal">
+                              {session.description}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-700 whitespace-nowrap">
+                          {formatDateTime(session.start_time)}
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSessionForRoster(session)}
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            title="Click to view attendee roster"
+                          >
+                            <Badge
+                              variant={
+                                session.booking_count > 0 ? 'primary' : 'neutral'
+                              }
+                              size="md"
+                            >
+                              {session.booking_count} / {session.capacity} Booked &#128065;
+                            </Badge>
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link to={`/sessions/${session.id}`}>
+                              <Button variant="outline" size="sm">
+                                View
+                              </Button>
+                            </Link>
+                            <Link to={`/creator/sessions/${session.id}/edit`}>
+                              <Button variant="outline" size="sm">
+                                Edit
+                              </Button>
+                            </Link>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+
+            {/* Quick Actions Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-white border border-slate-200 p-6 rounded-sm shadow-xs space-y-3">
+                <div className="text-2xl">✨</div>
+                <h4 className="text-base font-bold text-slate-900">
+                  Host New Session
+                </h4>
+                <p className="text-xs text-slate-600">
+                  Publish a new interactive workshop with custom agenda, time limits, and capacity.
+                </p>
+                <div className="pt-2">
+                  <Link to="/creator/sessions/new">
+                    <Button variant="primary" size="sm">
+                      Create Workshop &rarr;
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-6 rounded-sm shadow-xs space-y-3">
+                <div className="text-2xl">📋</div>
+                <h4 className="text-base font-bold text-slate-900">
+                  Manage All Sessions
+                </h4>
+                <p className="text-xs text-slate-600">
+                  Filter upcoming and completed sessions, inspect attendee lists, or modify bookings.
+                </p>
+                <div className="pt-2">
+                  <Link to="/creator/sessions">
+                    <Button variant="outline" size="sm">
+                      Go to My Sessions &rarr;
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 p-6 rounded-sm shadow-xs space-y-3">
+                <div className="text-2xl">👤</div>
+                <h4 className="text-base font-bold text-slate-900">
+                  Creator Profile
+                </h4>
+                <p className="text-xs text-slate-600">
+                  Review your profile information, manage security credentials, or switch roles.
+                </p>
+                <div className="pt-2">
+                  <Link to="/profile">
+                    <Button variant="outline" size="sm">
+                      View Profile &rarr;
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </PageContainer>

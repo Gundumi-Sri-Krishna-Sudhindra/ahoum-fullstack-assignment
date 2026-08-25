@@ -68,7 +68,10 @@ export const Navbar = () => {
 
               {user?.role === 'CREATOR' && (
                 <>
-                  <NavLink to="/creator" className={navLinkClasses}>
+                  <NavLink to="/creator" end className={navLinkClasses}>
+                    Dashboard
+                  </NavLink>
+                  <NavLink to="/creator/sessions" className={navLinkClasses}>
                     My Sessions
                   </NavLink>
                   <NavLink to="/creator/sessions/new" className={navLinkClasses}>
@@ -201,6 +204,14 @@ export const Navbar = () => {
             <>
               <NavLink
                 to="/creator"
+                end
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={mobileNavLinkClasses}
+              >
+                Dashboard
+              </NavLink>
+              <NavLink
+                to="/creator/sessions"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={mobileNavLinkClasses}
               >

@@ -15,6 +15,7 @@ import { GitHubCallbackPage } from './pages/GitHubCallbackPage'
 import { UserDashboardPage } from './pages/UserDashboardPage'
 import { BookingsPage } from './pages/BookingsPage'
 import { CreatorDashboardPage } from './pages/CreatorDashboardPage'
+import { CreatorSessionsPage } from './pages/CreatorSessionsPage'
 import { NewSessionPage } from './pages/NewSessionPage'
 import { EditSessionPage } from './pages/EditSessionPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -56,6 +57,10 @@ export function App() {
             {/* Authenticated CREATOR Only Routes */}
             <Route element={<RoleProtectedRoute allowedRoles={['CREATOR']} />}>
               <Route path="/creator" element={<CreatorDashboardPage />} />
+              <Route
+                path="/creator/sessions"
+                element={<CreatorSessionsPage />}
+              />
               <Route path="/creator/sessions/new" element={<NewSessionPage />} />
               <Route
                 path="/creator/sessions/:id/edit"

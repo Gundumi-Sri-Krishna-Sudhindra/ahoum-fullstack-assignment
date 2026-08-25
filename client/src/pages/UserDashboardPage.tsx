@@ -189,9 +189,12 @@ export const UserDashboardPage = () => {
                       Manage Booking
                     </Button>
                   </Link>
-                  <Link to={`/sessions/${nextBooking.session?.id}`}>
+                  <Link
+                    to={`/sessions/${nextBooking.session?.id}`}
+                    state={{ from: 'bookings' }}
+                  >
                     <Button variant="primary" size="sm">
-                      Join Session Hub
+                      View Booking Details
                     </Button>
                   </Link>
                 </div>

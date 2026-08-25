@@ -66,7 +66,7 @@ export const NewSessionPage = () => {
         capacity: Number(capacity),
       })
 
-      navigate('/creator', { replace: true })
+      navigate('/creator/sessions', { replace: true })
     } catch (err: unknown) {
       const e = err as { message?: string }
       setErrorMsg(
@@ -82,6 +82,13 @@ export const NewSessionPage = () => {
       <PageHeader
         title="Host New Session"
         description="Publish an interactive live workshop or teaching session for learners to book."
+        actions={
+          <Link to="/creator/sessions">
+            <Button variant="outline" size="md">
+              &larr; Back to Sessions
+            </Button>
+          </Link>
+        }
       />
 
       <div className="border border-slate-200 p-8 sm:p-10 rounded-sm bg-white shadow-xs space-y-6">
@@ -145,7 +152,7 @@ export const NewSessionPage = () => {
           />
 
           <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
-            <Link to="/creator">
+            <Link to="/creator/sessions">
               <Button variant="outline" size="md" disabled={isSubmitting}>
                 Cancel
               </Button>

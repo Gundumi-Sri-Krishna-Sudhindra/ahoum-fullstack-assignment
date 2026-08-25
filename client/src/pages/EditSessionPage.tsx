@@ -107,7 +107,7 @@ export const EditSessionPage = () => {
         capacity: Number(capacity),
       })
 
-      navigate('/creator', { replace: true })
+      navigate('/creator/sessions', { replace: true })
     } catch (err: unknown) {
       const e = err as { message?: string }
       setErrorMsg(
@@ -124,9 +124,9 @@ export const EditSessionPage = () => {
         title={`Edit Session #${id}`}
         description="Update session curriculum, schedules, or capacity limits."
         actions={
-          <Link to="/creator">
+          <Link to="/creator/sessions">
             <Button variant="outline" size="md">
-              &larr; Back to Dashboard
+              &larr; Back to Sessions
             </Button>
           </Link>
         }
@@ -195,7 +195,7 @@ export const EditSessionPage = () => {
             />
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
-              <Link to="/creator">
+              <Link to="/creator/sessions">
                 <Button variant="outline" size="md" disabled={isSubmitting}>
                   Cancel
                 </Button>

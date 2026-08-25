@@ -186,6 +186,7 @@ export const BookingsPage = () => {
                     <TableCell className="font-bold text-slate-900">
                       <Link
                         to={`/sessions/${booking.session?.id}`}
+                        state={{ from: 'bookings', bookingId: booking.id, bookingStatus: booking.status }}
                         className="hover:text-blue-700 hover:underline"
                       >
                         {booking.session?.title || `Session #${booking.session?.id}`}
@@ -214,7 +215,10 @@ export const BookingsPage = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link to={`/sessions/${booking.session?.id}`}>
+                        <Link
+                          to={`/sessions/${booking.session?.id}`}
+                          state={{ from: 'bookings', bookingId: booking.id, bookingStatus: booking.status }}
+                        >
                           <Button variant="outline" size="sm">
                             View
                           </Button>
