@@ -172,6 +172,36 @@ class StandardAuthRegressionTests(TestCase):
         created_user = User.objects.get(email='creator_user@example.com')
         self.assertEqual(created_user.role, User.Role.CREATOR)
 
+    def test_invalid_access_token_rejected_with_401(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer invalid_or_corrupted_token_string')
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data.get('code'), 'token_not_valid')
+
+    def test_expired_access_token_rejected_with_401(self):
+        from datetime import timedelta
+        from rest_framework_simplejwt.tokens import AccessToken
+
+        user = User.objects.create_user(
+            email='expired_test@example.com',
+            name='Expired Test',
+            password='Password123!',
+        )
+        token = AccessToken.for_user(user)
+        # Force expiration into the past
+        token.set_exp(lifetime=-timedelta(minutes=10))
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {str(token)}')
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data.get('code'), 'token_not_valid')
+        self.assertIn("token is expired", str(response.data).lower())
+
+    def test_invalid_refresh_token_rejected_with_401(self):
+        response = self.client.post('/api/auth/refresh/', {'refresh': 'corrupted_refresh_token_123'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data.get('code'), 'token_not_valid')
+
 
 class UserProfileUpdateTests(TestCase):
     """Comprehensive tests for user profile editing and field protection."""
